@@ -5,7 +5,9 @@ A world-class, elegant macOS application for real-time meeting transcription and
 
 <img width="600" height="640" alt="Meeting Translator 2026-04-02 19 11 37" src="https://github.com/user-attachments/assets/365520b9-8aaf-4b37-b83a-494a5c801d51" />
 
+
 <img width="480" height="760" alt="image" src="https://github.com/user-attachments/assets/9d642d45-52f3-4815-9a2f-ed5035aa1e70" />
+
 
 <img width="480" height="760" alt="image" src="https://github.com/user-attachments/assets/030cd0cd-8fe4-40c5-a938-ce9daaa9628d" />
 
