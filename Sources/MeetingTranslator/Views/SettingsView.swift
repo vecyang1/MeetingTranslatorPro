@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Elegant settings panel for API keys, engine selection, language, and audio configuration
+/// Elegant settings panel — refined layout with clear visual grouping
 struct SettingsView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) var dismiss
@@ -11,179 +11,105 @@ struct SettingsView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header
-            HStack {
-                Text("Settings")
-                    .font(.system(size: 16, weight: .semibold))
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18))
-                        .foregroundStyle(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 20)
-            .padding(.bottom, 16)
-
+            header
             Divider()
 
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
                     // Engine Selection
                     settingsSection(title: "Transcription Engine", icon: "cpu", iconColor: .purple) {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: 8) {
                             ForEach(TranscriptionEngine.allCases) { engine in
                                 engineButton(engine)
                             }
                         }
                     }
 
-                    // OpenAI API Key
-                    settingsSection(title: "OpenAI API", icon: "key.fill", iconColor: .orange) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                if showOpenAIKey {
-                                    TextField("sk-...", text: $appState.apiKey)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 12, design: .monospaced))
-                                } else {
-                                    SecureField("Enter your OpenAI API key", text: $appState.apiKey)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 12, design: .monospaced))
-                                }
-                                Button(action: { showOpenAIKey.toggle() }) {
-                                    Image(systemName: showOpenAIKey ? "eye.slash" : "eye")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color.primary.opacity(0.04))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                                    )
+                    // API Keys
+                    settingsSection(title: "API Keys", icon: "key.fill", iconColor: .orange) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            apiKeyField(
+                                label: "OpenAI API Key",
+                                placeholder: "sk-...",
+                                value: $appState.apiKey,
+                                isVisible: $showOpenAIKey,
+                                isRequired: appState.selectedEngine.requiresOpenAIKey
                             )
 
-                            HStack(spacing: 4) {
-                                Image(systemName: appState.selectedEngine.requiresOpenAIKey ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(appState.selectedEngine.requiresOpenAIKey ? Color.green : Color.secondary)
-                                Text(appState.selectedEngine.requiresOpenAIKey
-                                     ? "Required for current engine"
-                                     : "Not required for current engine")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                    }
+                            Divider().opacity(0.3)
 
-                    // Google API Key
-                    settingsSection(title: "Google Gemini API", icon: "key.fill", iconColor: .blue) {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                if showGoogleKey {
-                                    TextField("AIza...", text: $appState.googleAPIKey)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 12, design: .monospaced))
-                                } else {
-                                    SecureField("Enter your Google API key", text: $appState.googleAPIKey)
-                                        .textFieldStyle(.plain)
-                                        .font(.system(size: 12, design: .monospaced))
-                                }
-                                Button(action: { showGoogleKey.toggle() }) {
-                                    Image(systemName: showGoogleKey ? "eye.slash" : "eye")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.secondary)
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(10)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .fill(Color.primary.opacity(0.04))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                                    )
+                            apiKeyField(
+                                label: "Google Gemini API Key",
+                                placeholder: "AIza...",
+                                value: $appState.googleAPIKey,
+                                isVisible: $showGoogleKey,
+                                isRequired: appState.selectedEngine.requiresGoogleKey
                             )
+                        }
+                    }
 
-                            HStack(spacing: 4) {
-                                Image(systemName: appState.selectedEngine.requiresGoogleKey ? "checkmark.circle.fill" : "circle")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(appState.selectedEngine.requiresGoogleKey ? Color.green : Color.secondary)
-                                Text(appState.selectedEngine.requiresGoogleKey
-                                     ? "Required for current engine"
-                                     : "Not required for current engine")
-                                    .font(.system(size: 11))
+                    // Language Settings
+                    settingsSection(title: "Languages", icon: "globe", iconColor: .blue) {
+                        VStack(alignment: .leading, spacing: 14) {
+                            // Target language
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Output Language")
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.secondary)
+
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], spacing: 6) {
+                                    ForEach(SupportedLanguage.allCases) { lang in
+                                        languageButton(lang)
+                                    }
+                                }
                             }
-                        }
-                    }
 
-                    // Translation Settings
-                    settingsSection(title: "Translation", icon: "globe", iconColor: .blue) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Target Language")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
+                            Divider().opacity(0.3)
 
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 8) {
-                                ForEach(SupportedLanguage.allCases) { lang in
-                                    languageButton(lang)
+                            // Input languages
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Input Languages")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+
+                                Text("Select expected speaker languages to improve accuracy. Leave empty for auto-detect.")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                    .fixedSize(horizontal: false, vertical: true)
+
+                                LazyVGrid(columns: [
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible()),
+                                    GridItem(.flexible())
+                                ], spacing: 6) {
+                                    ForEach(SupportedLanguage.allCases) { lang in
+                                        inputLanguageCheckbox(lang)
+                                    }
+                                }
+
+                                if !appState.inputLanguages.isEmpty {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "info.circle.fill")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.blue)
+                                        Text(appState.inputLanguages.count == 1
+                                             ? "Single language mode — strongest accuracy"
+                                             : "Multi-language mode — vocabulary bias hint")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
                     }
 
-                    // Input Languages
-                    settingsSection(title: "Input Languages", icon: "mic.badge.plus", iconColor: .orange) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("Expected speaker languages (optional)")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.secondary)
-
-                            Text("Select one or more languages to improve transcription accuracy. Leave empty to auto-detect all.")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-
-                            LazyVGrid(columns: [
-                                GridItem(.flexible()),
-                                GridItem(.flexible()),
-                                GridItem(.flexible())
-                            ], spacing: 8) {
-                                ForEach(SupportedLanguage.allCases) { lang in
-                                    inputLanguageCheckbox(lang)
-                                }
-                            }
-
-                            if !appState.inputLanguages.isEmpty {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "info.circle.fill")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.blue)
-                                    Text(appState.inputLanguages.count == 1
-                                         ? "Single language → strongest accuracy hint (Whisper `language` param)"
-                                         : "Multiple languages → vocabulary bias hint (Whisper `prompt` + Gemini system instruction)")
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                        }
-                    }
-
-                    // Audio Settings
+                    // Audio Sources
                     settingsSection(title: "Audio Sources", icon: "waveform", iconColor: .green) {
-                        VStack(spacing: 12) {
+                        VStack(spacing: 10) {
                             audioToggle(
                                 title: "Microphone",
                                 subtitle: "Capture your voice",
@@ -201,12 +127,12 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Advanced — collapsible
+                    // Advanced Settings
                     settingsSection(title: "Advanced", icon: "slider.horizontal.3", iconColor: .gray) {
-                        VStack(alignment: .leading, spacing: 16) {
-
-                            // Expand/collapse toggle
-                            Button(action: { withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() } }) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Button(action: {
+                                withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() }
+                            }) {
                                 HStack(spacing: 6) {
                                     Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
                                         .font(.system(size: 10, weight: .semibold))
@@ -219,14 +145,11 @@ struct SettingsView: View {
                             .buttonStyle(.plain)
 
                             if showAdvanced {
-                                VStack(alignment: .leading, spacing: 20) {
-
-                                    // Pipeline diagram
+                                VStack(alignment: .leading, spacing: 18) {
                                     pipelineDiagram
 
-                                    Divider()
+                                    Divider().opacity(0.3)
 
-                                    // Fast interval
                                     sliderRow(
                                         label: "Fast Draft Interval",
                                         value: $appState.fastInterval,
@@ -237,7 +160,6 @@ struct SettingsView: View {
                                         color: .orange
                                     )
 
-                                    // Stitch interval (OpenAI only)
                                     if appState.selectedEngine == .openAI {
                                         sliderRow(
                                             label: "Stitch Pass Interval",
@@ -245,12 +167,11 @@ struct SettingsView: View {
                                             range: 8...30,
                                             step: 1,
                                             unit: "s",
-                                            hint: "How often to re-transcribe a longer window and replace drafts. Longer = better context stitching.",
+                                            hint: "How often to re-transcribe a longer window and replace drafts.",
                                             color: .blue
                                         )
                                     }
 
-                                    // Gemini quality interval
                                     if appState.selectedEngine == .geminiFlash {
                                         sliderRow(
                                             label: "Quality Pass Interval",
@@ -289,10 +210,6 @@ struct SettingsView: View {
                                                 .font(.system(size: 10))
                                                 .foregroundStyle(.secondary)
                                         }
-                                        Text("⚠️ Keep this low (0.003–0.008). Too high will skip real speech, especially from far away.")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.orange.opacity(0.8))
-                                            .fixedSize(horizontal: false, vertical: true)
                                     }
                                 }
                                 .transition(.opacity.combined(with: .move(edge: .top)))
@@ -302,14 +219,14 @@ struct SettingsView: View {
 
                     // Cost Tracking
                     settingsSection(title: "API Cost Tracking", icon: "dollarsign.circle", iconColor: .orange) {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: 10) {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Session Cost")
                                         .font(.system(size: 11, weight: .medium))
                                         .foregroundStyle(.secondary)
                                     Text(appState.costTracker.sessionCostFormatted)
-                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                                         .foregroundStyle(.primary)
                                 }
                                 Spacer()
@@ -318,13 +235,13 @@ struct SettingsView: View {
                                         .font(.system(size: 11, weight: .medium))
                                         .foregroundStyle(.secondary)
                                     Text(appState.costTracker.totalCostFormatted)
-                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                                         .foregroundStyle(.orange)
                                 }
                             }
 
                             if !appState.costTracker.logEntries.isEmpty {
-                                Divider()
+                                Divider().opacity(0.3)
                                 Text("Recent API Calls")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundStyle(.secondary)
@@ -361,31 +278,79 @@ struct SettingsView: View {
             }
 
             Divider()
-
-            // Footer
-            HStack {
-                Spacer()
-                Button(action: {
-                    appState.saveSettings()
-                    dismiss()
-                }) {
-                    Text("Save & Close")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(Color.accentColor.gradient)
-                        )
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 16)
+            footer
         }
-        .frame(width: 480, height: 760)
+        .frame(width: 500, height: 780)
         .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow))
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [.blue, .purple],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 24, height: 24)
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.white)
+                }
+                Text("Settings")
+                    .font(.system(size: 16, weight: .bold))
+            }
+            Spacer()
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 18))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 20)
+        .padding(.bottom, 14)
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        HStack {
+            Text("Changes are saved automatically")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Spacer()
+            Button(action: {
+                appState.saveSettings()
+                dismiss()
+            }) {
+                Text("Done")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.blue, .purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                )
+                            )
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
     }
 
     // MARK: - Pipeline Diagram
@@ -437,7 +402,7 @@ struct SettingsView: View {
                         .font(.system(size: 9, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.blue)
                         .frame(width: 42, alignment: .leading)
-                    Text("S1 replaces F1–F\(stitchInt / fastInt)")
+                    Text("S1 replaces F1\u{2013}F\(stitchInt / fastInt)")
                         .font(.system(size: 8, weight: .medium, design: .monospaced))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6)
@@ -463,7 +428,7 @@ struct SettingsView: View {
         return "High (\(String(format: "%.3f", v)))"
     }
 
-    // MARK: - Slider Row Helper
+    // MARK: - Slider Row
 
     private func sliderRow(
         label: String,
@@ -511,12 +476,83 @@ struct SettingsView: View {
                 Image(systemName: icon)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(iconColor)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 5, style: .continuous)
+                            .fill(iconColor.opacity(0.1))
+                    )
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 13, weight: .bold))
             }
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.primary.opacity(0.02))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.05), lineWidth: 1)
+                )
+        )
+    }
+
+    private func apiKeyField(
+        label: String,
+        placeholder: String,
+        value: Binding<String>,
+        isVisible: Binding<Bool>,
+        isRequired: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                if isRequired {
+                    Text("Required")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.green))
+                } else {
+                    Text("Optional")
+                        .font(.system(size: 8, weight: .bold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.primary.opacity(0.06)))
+                }
+            }
+
+            HStack {
+                if isVisible.wrappedValue {
+                    TextField(placeholder, text: value)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, design: .monospaced))
+                } else {
+                    SecureField("Enter your API key", text: value)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 12, design: .monospaced))
+                }
+                Button(action: { isVisible.wrappedValue.toggle() }) {
+                    Image(systemName: isVisible.wrappedValue ? "eye.slash" : "eye")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(10)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.primary.opacity(0.04))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                    )
+            )
+        }
     }
 
     private func engineButton(_ engine: TranscriptionEngine) -> some View {
@@ -558,7 +594,7 @@ struct SettingsView: View {
         Button(action: { appState.targetLanguage = lang }) {
             HStack(spacing: 4) {
                 Text(lang.flag)
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                 Text(lang.rawValue)
                     .font(.system(size: 11, weight: appState.targetLanguage == lang ? .semibold : .regular))
                     .lineLimit(1)

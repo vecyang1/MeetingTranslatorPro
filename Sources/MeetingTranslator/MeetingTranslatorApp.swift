@@ -12,7 +12,7 @@ struct MeetingTranslatorApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentMinSize)
-        .defaultSize(width: 600, height: 640)
+        .defaultSize(width: 680, height: 720)
         .commands {
             // Remove default "New Window" command
             CommandGroup(replacing: .newItem) { }

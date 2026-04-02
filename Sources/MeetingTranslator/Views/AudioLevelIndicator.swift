@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Animated audio level bars indicator
+/// Animated audio level bars indicator — waveform style
 struct AudioLevelIndicator: View {
     let level: Float
     let barCount: Int
@@ -15,20 +15,20 @@ struct AudioLevelIndicator: View {
     var body: some View {
         HStack(spacing: 2) {
             ForEach(0..<barCount, id: \.self) { index in
-                RoundedRectangle(cornerRadius: 1)
+                RoundedRectangle(cornerRadius: 1.5)
                     .fill(barColor(for: index))
                     .frame(width: 3, height: barHeight(for: index))
-                    .animation(.easeOut(duration: 0.1), value: level)
+                    .animation(.easeOut(duration: 0.08), value: level)
             }
         }
-        .frame(height: 16)
+        .frame(height: 18)
     }
 
     private func barHeight(for index: Int) -> CGFloat {
         let threshold = Float(index) / Float(barCount)
         let active = level > threshold
         let minHeight: CGFloat = 3
-        let maxHeight: CGFloat = 16
+        let maxHeight: CGFloat = 18
         if active {
             let progress = min(1.0, (level - threshold) * Float(barCount))
             return minHeight + CGFloat(progress) * (maxHeight - minHeight) * CGFloat(index + 1) / CGFloat(barCount)
@@ -41,7 +41,7 @@ struct AudioLevelIndicator: View {
         if level > threshold {
             return color.opacity(0.6 + Double(index) * 0.08)
         }
-        return color.opacity(0.15)
+        return color.opacity(0.12)
     }
 }
 
@@ -61,5 +61,29 @@ struct RecordingPulse: View {
                 value: isPulsing
             )
             .onAppear { isPulsing = true }
+    }
+}
+
+/// Animated waveform dots for active listening state
+struct ListeningWaveform: View {
+    let color: Color
+    @State private var animating = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ForEach(0..<5, id: \.self) { i in
+                Circle()
+                    .fill(color)
+                    .frame(width: 4, height: 4)
+                    .scaleEffect(animating ? 1.0 : 0.4)
+                    .animation(
+                        .easeInOut(duration: 0.5)
+                        .repeatForever(autoreverses: true)
+                        .delay(Double(i) * 0.1),
+                        value: animating
+                    )
+            }
+        }
+        .onAppear { animating = true }
     }
 }

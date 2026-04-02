@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// A single transcription/translation entry row with speaker differentiation
+/// A single transcription/translation entry — card-based design with elegant visual hierarchy
 struct TranscriptionRowView: View {
     let entry: TranscriptionEntry
     let showTranslation: Bool
@@ -21,11 +21,11 @@ struct TranscriptionRowView: View {
 
                 speakerBadge
             }
-            .frame(width: 72)
+            .frame(width: 68)
 
             // Content column
-            VStack(alignment: .leading, spacing: 6) {
-                // Language tag row
+            VStack(alignment: .leading, spacing: 8) {
+                // Language tag + draft indicator
                 HStack(spacing: 6) {
                     if let flag = entry.languageFlag {
                         Text(flag)
@@ -33,38 +33,43 @@ struct TranscriptionRowView: View {
                     }
                     if let langName = entry.languageName {
                         Text(langName)
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .foregroundStyle(languageColor.opacity(0.9))
+                            .font(.system(size: 10, weight: .bold, design: .rounded))
+                            .foregroundStyle(languageColor)
                     }
                     Spacer()
-                    // Draft indicator — shows while fast-track result awaits stitch pass
                     if entry.isDraft {
                         HStack(spacing: 3) {
                             ProgressView()
-                                .scaleEffect(0.4)
-                                .frame(width: 10, height: 10)
+                                .scaleEffect(0.35)
+                                .frame(width: 8, height: 8)
                             Text("draft")
-                                .font(.system(size: 9, weight: .medium, design: .monospaced))
+                                .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.orange.opacity(0.7))
                         }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(Color.orange.opacity(0.08))
+                        )
                     }
                 }
 
-                // Original text — italic and slightly dimmed for drafts
+                // Original text
                 Text(wrappedText(entry.originalText))
                     .font(.system(size: 13, weight: .regular))
                     .italic(entry.isDraft)
-                    .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.55) : Color.primary.opacity(0.85))
+                    .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.5) : Color.primary.opacity(0.85))
                     .textSelection(.enabled)
                     .lineSpacing(4)
 
-                // Translated text or loading — only show if showTranslation is true
+                // Translation
                 if showTranslation {
                     if entry.isTranslating {
                         HStack(spacing: 6) {
                             ProgressView()
-                                .scaleEffect(0.5)
-                                .frame(width: 12, height: 12)
+                                .scaleEffect(0.45)
+                                .frame(width: 10, height: 10)
                             Text("Translating...")
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.secondary)
@@ -74,14 +79,14 @@ struct TranscriptionRowView: View {
                         Text(wrappedText(translated))
                             .font(.system(size: 14, weight: entry.isDraft ? .regular : .medium))
                             .italic(entry.isDraft)
-                            .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.55) : Color.primary)
+                            .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.5) : Color.primary)
                             .textSelection(.enabled)
                             .lineSpacing(4)
-                            .padding(.vertical, 6)
-                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(entry.isDraft ? translationBubbleColor.opacity(0.5) : translationBubbleColor)
                             )
                     }
@@ -89,8 +94,13 @@ struct TranscriptionRowView: View {
             }
         }
         .padding(.vertical, 10)
-        .padding(.horizontal, 16)
-        .opacity(entry.isDraft ? 0.8 : 1.0)
+        .padding(.horizontal, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(cardBackground)
+        )
+        .padding(.horizontal, 8)
+        .opacity(entry.isDraft ? 0.75 : 1.0)
     }
 
     // MARK: - Speaker Badge
@@ -98,24 +108,31 @@ struct TranscriptionRowView: View {
     private var speakerBadge: some View {
         VStack(spacing: 3) {
             Image(systemName: entry.source == .microphone ? "mic.fill" : "speaker.wave.2.fill")
-                .font(.system(size: 10))
+                .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(speakerColor)
 
             Text(speakerDisplayName)
-                .font(.system(size: 9, weight: .semibold, design: .rounded))
+                .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(speakerColor)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 5)
         .background(
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(speakerColor.opacity(0.1))
         )
     }
 
     // MARK: - Computed Properties
+
+    private var cardBackground: Color {
+        if entry.isQualityResult {
+            return Color.primary.opacity(0.02)
+        }
+        return Color.clear
+    }
 
     private var speakerDisplayName: String {
         if let label = entry.speakerLabel {
@@ -141,15 +158,12 @@ struct TranscriptionRowView: View {
         if entry.source == .microphone {
             return Color.green.opacity(0.06)
         }
-        return Color.accentColor.opacity(0.08)
+        return Color.accentColor.opacity(0.07)
     }
 
     // MARK: - CJK Line Wrapping
 
-    /// Insert newlines into CJK text every ~22 characters at natural break points
-    /// to improve readability in the narrow column layout.
     private func wrappedText(_ text: String) -> String {
-        // Only wrap if text is mostly CJK
         let cjkCount = text.unicodeScalars.filter { v in
             let val = v.value
             return (val >= 0x4E00 && val <= 0x9FFF) ||
@@ -158,18 +172,16 @@ struct TranscriptionRowView: View {
         }.count
         guard cjkCount > text.count / 3 else { return text }
 
-        let lineLength = 22
+        let lineLength = 24
         var result = ""
         var lineCount = 0
 
         for char in text {
-            // Natural break points: punctuation, spaces
             let isBreakable = "，。！？、；：\n ".contains(char)
             result.append(char)
             lineCount += 1
 
             if isBreakable {
-                // After punctuation, reset counter (natural break)
                 if lineCount >= lineLength - 5 {
                     result.append("\n")
                     lineCount = 0
