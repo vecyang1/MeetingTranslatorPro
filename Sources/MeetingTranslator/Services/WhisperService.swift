@@ -2,27 +2,20 @@ import Foundation
 
 /// Handles communication with OpenAI Audio Transcription API
 /// Uses gpt-4o-mini-transcribe — better accuracy than whisper-1 at half the cost ($0.003/min)
+/// Note: gpt-4o-mini-transcribe only supports `json` or `text` response_format (NOT verbose_json)
 final class WhisperService: @unchecked Sendable {
     private let endpoint = "https://api.openai.com/v1/audio/transcriptions"
     private var apiKey: String
 
-    /// Verbose JSON response — includes language and segments with no_speech_prob
-    struct WhisperVerboseResponse: Codable {
+    /// JSON response from gpt-4o-mini-transcribe: {"text": "..."}
+    struct TranscribeResponse: Codable {
         let text: String
-        let language: String?
-        let segments: [Segment]?
-
-        struct Segment: Codable {
-            let text: String
-            let no_speech_prob: Double?
-            let avg_logprob: Double?
-        }
     }
 
     struct WhisperResponse: Codable {
         let text: String
         let language: String?
-        let noSpeechProbability: Double  // Aggregated from segments
+        let noSpeechProbability: Double  // Always 0 for gpt-4o-mini-transcribe (not provided)
     }
 
     init(apiKey: String) {
@@ -109,11 +102,9 @@ final class WhisperService: @unchecked Sendable {
         // Model — gpt-4o-mini-transcribe: better accuracy, $0.003/min (half of whisper-1)
         appendFormField(&body, boundary: boundary, name: "model", value: "gpt-4o-mini-transcribe")
 
-        // Response format — verbose_json gives us no_speech_prob and language
-        appendFormField(&body, boundary: boundary, name: "response_format", value: "verbose_json")
-
-        // Temperature = 0 for deterministic output, reduces hallucination
-        appendFormField(&body, boundary: boundary, name: "temperature", value: "0")
+        // Response format — gpt-4o-mini-transcribe only supports "json" or "text"
+        // (NOT verbose_json, srt, or vtt)
+        appendFormField(&body, boundary: boundary, name: "response_format", value: "json")
 
         // Language hint — if exactly one input language is specified, pass it directly.
         // The `language` parameter is the strongest accuracy hint: it skips
@@ -156,21 +147,16 @@ final class WhisperService: @unchecked Sendable {
         }
 
         let decoder = JSONDecoder()
-        let verbose = try decoder.decode(WhisperVerboseResponse.self, from: data)
+        let transcribeResult = try decoder.decode(TranscribeResponse.self, from: data)
 
-        // Calculate aggregate no_speech_prob from segments
-        let noSpeechProb: Double
-        if let segments = verbose.segments, !segments.isEmpty {
-            let probs = segments.compactMap { $0.no_speech_prob }
-            noSpeechProb = probs.isEmpty ? 0.0 : probs.reduce(0, +) / Double(probs.count)
-        } else {
-            noSpeechProb = 0.0
-        }
-
+        // gpt-4o-mini-transcribe does not return language or no_speech_prob in its JSON response.
+        // Language detection is handled downstream by the translation service.
+        // noSpeechProbability is set to 0 (assume speech is present; the model itself
+        // handles silence much better than whisper-1 and simply returns empty text).
         return WhisperResponse(
-            text: verbose.text,
-            language: verbose.language,
-            noSpeechProbability: noSpeechProb
+            text: transcribeResult.text,
+            language: nil,
+            noSpeechProbability: 0.0
         )
     }
 
