@@ -1,0 +1,23 @@
+# Build artifacts
+build/
+.build/
+DerivedData/
+*.o
+*.swp
+
+# Binary (root level only)
+/MeetingTranslator
+
+# Xcode
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+
+# Swift Package Manager
+.swiftpm/
+Packages/
+Package.resolved
+
+# macOS
+.DS_Store
+*.dSYM
