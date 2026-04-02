@@ -66,7 +66,7 @@ final class WhisperService: @unchecked Sendable {
         var body = Data()
 
         // Model parameter
-        appendFormField(&body, boundary: boundary, name: "model", value: "whisper-1")
+        appendFormField(&body, boundary: boundary, name: "model", value: "whisper-large-v3")
 
         // Response format — verbose_json gives us no_speech_prob and language
         appendFormField(&body, boundary: boundary, name: "response_format", value: "verbose_json")
