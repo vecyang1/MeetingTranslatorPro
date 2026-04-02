@@ -83,6 +83,13 @@ struct ContentView: View {
                         }
                     }
 
+                    if appState.isRecording {
+                        Text(appState.recordingTimeFormatted)
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.red)
+                            .monospacedDigit()
+                    }
+
                     if appState.costTracker.sessionCost > 0 {
                         Text(appState.costTracker.sessionCostFormatted)
                             .font(.system(size: 9, weight: .medium, design: .monospaced))

@@ -1,11 +1,12 @@
 import Foundation
 
-/// Handles communication with OpenAI Whisper API for audio transcription
+/// Handles communication with OpenAI Audio Transcription API
+/// Uses gpt-4o-mini-transcribe — better accuracy than whisper-1 at half the cost ($0.003/min)
 final class WhisperService: @unchecked Sendable {
     private let endpoint = "https://api.openai.com/v1/audio/transcriptions"
     private var apiKey: String
 
-    /// Verbose JSON response from Whisper — includes no_speech_prob
+    /// Verbose JSON response — includes language and segments with no_speech_prob
     struct WhisperVerboseResponse: Codable {
         let text: String
         let language: String?
@@ -33,20 +34,14 @@ final class WhisperService: @unchecked Sendable {
     }
 
     /// Transcribe raw PCM audio data (16-bit, 16kHz, mono) to text.
-    /// - Parameters:
-    ///   - pcmData: Raw PCM bytes
-    ///   - prompt: Optional context from previous segment to guide stitching.
-    ///             Whisper uses this to bias vocabulary and continue naturally.
-    ///             Pass the last ~30 chars of the previous transcription.
-    ///   - inputLanguageCodes: ISO codes of expected input languages (e.g. ["zh", "en"]).
-    ///             Single code → passed as Whisper `language` param (strongest hint).
-    ///             Multiple codes → prepended to `prompt` as vocabulary bias.
+    /// Includes automatic retry with exponential backoff for transient failures.
     func transcribe(pcmData: Data, prompt: String? = nil, inputLanguageCodes: [String] = []) async throws -> WhisperResponse {
         let wavData = createWAVData(from: pcmData, sampleRate: 16000, channels: 1, bitsPerSample: 16)
         return try await transcribeWAV(wavData: wavData, prompt: prompt, inputLanguageCodes: inputLanguageCodes)
     }
 
-    /// Transcribe WAV audio data with optional context prompt and language hints
+    /// Transcribe WAV audio data with optional context prompt and language hints.
+    /// Retries up to 2 times on transient errors (429, 500, 502, 503, timeout).
     func transcribeWAV(wavData: Data, prompt: String? = nil, inputLanguageCodes: [String] = []) async throws -> WhisperResponse {
         guard !apiKey.isEmpty else {
             throw WhisperError.noAPIKey
@@ -55,6 +50,52 @@ final class WhisperService: @unchecked Sendable {
             throw WhisperError.invalidURL
         }
 
+        var lastError: Error = WhisperError.invalidResponse
+        let maxRetries = 2
+
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                // Exponential backoff: 1s, 3s
+                let delay = UInt64(pow(2.0, Double(attempt)) - 1) * 1_000_000_000
+                try? await Task.sleep(nanoseconds: delay)
+            }
+
+            do {
+                let result = try await performRequest(url: url, wavData: wavData, prompt: prompt, inputLanguageCodes: inputLanguageCodes)
+                return result
+            } catch let error as WhisperError {
+                lastError = error
+                switch error {
+                case .apiError(let statusCode, _):
+                    // Retry on transient errors only
+                    if [429, 500, 502, 503].contains(statusCode) {
+                        continue
+                    }
+                    throw error  // Non-transient (401, 404, etc.) — fail immediately
+                default:
+                    // Retry on timeout/network errors
+                    if error.localizedDescription.contains("timeout") ||
+                       error.localizedDescription.contains("Timeout") {
+                        continue
+                    }
+                    throw error
+                }
+            } catch {
+                lastError = error
+                // Retry on URLSession errors (network issues, timeouts)
+                let desc = error.localizedDescription
+                if desc.contains("timed out") || desc.contains("network") || desc.contains("connection") {
+                    continue
+                }
+                throw error
+            }
+        }
+
+        throw lastError
+    }
+
+    /// Perform a single transcription request
+    private func performRequest(url: URL, wavData: Data, prompt: String?, inputLanguageCodes: [String]) async throws -> WhisperResponse {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
@@ -65,8 +106,8 @@ final class WhisperService: @unchecked Sendable {
 
         var body = Data()
 
-        // Model parameter
-        appendFormField(&body, boundary: boundary, name: "model", value: "whisper-large-v3")
+        // Model — gpt-4o-mini-transcribe: better accuracy, $0.003/min (half of whisper-1)
+        appendFormField(&body, boundary: boundary, name: "model", value: "gpt-4o-mini-transcribe")
 
         // Response format — verbose_json gives us no_speech_prob and language
         appendFormField(&body, boundary: boundary, name: "response_format", value: "verbose_json")
@@ -75,18 +116,17 @@ final class WhisperService: @unchecked Sendable {
         appendFormField(&body, boundary: boundary, name: "temperature", value: "0")
 
         // Language hint — if exactly one input language is specified, pass it directly.
-        // Whisper's `language` parameter is the strongest accuracy hint: it skips
+        // The `language` parameter is the strongest accuracy hint: it skips
         // language detection entirely and forces the model to transcribe in that language.
         if inputLanguageCodes.count == 1 {
             appendFormField(&body, boundary: boundary, name: "language", value: inputLanguageCodes[0])
         }
 
-        // Context prompt for stitching — Whisper uses this to bias transcription
-        // toward vocabulary and style from the previous segment.
+        // Context prompt for stitching — biases transcription toward vocabulary
+        // and style from the previous segment.
         // For multi-language scenarios, also prepend a language hint to the prompt.
         var effectivePrompt = prompt ?? ""
         if inputLanguageCodes.count > 1 {
-            // Prepend language hint so Whisper knows what to expect
             let langHint = "[Expected languages: \(inputLanguageCodes.joined(separator: ", "))]"
             effectivePrompt = effectivePrompt.isEmpty ? langHint : langHint + " " + effectivePrompt
         }

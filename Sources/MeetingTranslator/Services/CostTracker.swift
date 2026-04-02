@@ -20,8 +20,8 @@ final class CostTracker: ObservableObject {
 
     // MARK: - Pricing (per unit, as of 2026-04)
 
-    // OpenAI Whisper: $0.006 per minute of audio
-    private let whisperPricePerMinute: Double = 0.006
+    // OpenAI gpt-4o-mini-transcribe: $0.003 per minute of audio (half of whisper-1)
+    private let whisperPricePerMinute: Double = 0.003
 
     // OpenAI GPT-4o-mini: $0.15 per 1M input tokens, $0.60 per 1M output tokens
     private let gpt4oMiniInputPer1M: Double = 0.15

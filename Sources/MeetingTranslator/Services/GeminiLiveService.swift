@@ -2,9 +2,11 @@ import Foundation
 
 /// Gemini 3.1 Flash Live — WebSocket streaming for real-time transcription
 /// Architecture: Uses inputAudioTranscription for raw STT, then calls GeminiFlash for translation
+/// Upgraded from gemini-2.0-flash-live-001 to gemini-3.1-flash-live-preview for much better quality.
+/// Includes proper setupComplete handshake, auto-reconnect, and heartbeat ping.
 final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocketDelegate {
     private var apiKey: String
-    private let model = "gemini-2.0-flash-live-001"
+    private let model = "gemini-3.1-flash-live-preview"
     private var webSocket: URLSessionWebSocketTask?
     private var urlSession: URLSession?
     private var isConnected = false
@@ -35,6 +37,12 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
     // Accumulate transcription segments within a turn
     private var accumulatedTranscription: String = ""
     private var lastEmittedTranscription: String = ""
+
+    // Heartbeat / keep-alive
+    private var pingTask: Task<Void, Never>?
+
+    // Setup completion continuation for proper handshake
+    private var setupContinuation: CheckedContinuation<Void, Error>?
 
     init(apiKey: String) {
         self.apiKey = apiKey
@@ -67,23 +75,27 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
 
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 3600
+        config.timeoutIntervalForResource = 3600  // 1 hour max session
         let session = URLSession(configuration: config, delegate: self, delegateQueue: nil)
         self.urlSession = session
         let task = session.webSocketTask(with: url)
         self.webSocket = task
         task.resume()
 
-        // Wait for connection
-        try await Task.sleep(nanoseconds: 800_000_000)
+        // Wait briefly for WebSocket to open, then send setup
+        try await Task.sleep(nanoseconds: 500_000_000)
 
-        // Send setup message
-        try await sendSetup()
+        // Send setup and wait for setupComplete acknowledgement (with timeout)
+        try await sendSetupAndWait()
+
         isConnected = true
         onConnectionStateChanged?(true)
 
         // Start receive loop
         Task { await receiveLoop() }
+
+        // Start heartbeat ping every 30s to detect stale connections
+        startPingLoop()
     }
 
     func disconnect() {
@@ -91,6 +103,8 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
         isSetupComplete = false
         accumulatedTranscription = ""
         lastEmittedTranscription = ""
+        pingTask?.cancel()
+        pingTask = nil
         webSocket?.cancel(with: .goingAway, reason: nil)
         webSocket = nil
         urlSession?.invalidateAndCancel()
@@ -106,9 +120,9 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
 
     // MARK: - Setup
 
-    private func sendSetup() async throws {
-        // For Live API: we ONLY use it for speech-to-text (inputAudioTranscription)
-        // Translation is handled separately by GeminiFlashService to avoid hallucinations
+    /// Send setup message and wait for setupComplete acknowledgement.
+    /// Times out after 8 seconds if no acknowledgement is received.
+    private func sendSetupAndWait() async throws {
         let setupMessage: [String: Any] = [
             "setup": [
                 "model": "models/\(model)",
@@ -136,8 +150,40 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
         let jsonData = try JSONSerialization.data(withJSONObject: setupMessage)
         try await webSocket?.send(.data(jsonData))
 
-        // Wait for setup complete
-        try await Task.sleep(nanoseconds: 1_200_000_000)
+        // Wait for setupComplete with a timeout
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            self.setupContinuation = continuation
+
+            // Timeout after 8 seconds
+            Task {
+                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                if !self.isSetupComplete {
+                    self.setupContinuation?.resume(throwing: GeminiError.connectionError("Setup timed out — no setupComplete received"))
+                    self.setupContinuation = nil
+                }
+            }
+        }
+    }
+
+    // MARK: - Heartbeat Ping
+
+    private func startPingLoop() {
+        pingTask?.cancel()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)  // 30 seconds
+                guard let self = self, self.isConnected else { break }
+                self.webSocket?.sendPing { error in
+                    if let error = error {
+                        Task { @MainActor [weak self] in
+                            self?.onError?(GeminiError.connectionError("Ping failed: \(error.localizedDescription)"))
+                            self?.isConnected = false
+                            self?.onConnectionStateChanged?(false)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Send Audio
@@ -196,9 +242,11 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
     private func processServerMessage(_ data: Data) {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
 
-        // Handle setup complete
+        // Handle setup complete — resume the continuation
         if json["setupComplete"] != nil {
             isSetupComplete = true
+            setupContinuation?.resume()
+            setupContinuation = nil
             return
         }
 
@@ -219,7 +267,6 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
                 let finalText = accumulatedTranscription.trimmingCharacters(in: .whitespacesAndNewlines)
                 if !finalText.isEmpty && finalText != lastEmittedTranscription && !isRepeatedHallucination(finalText) {
                     lastEmittedTranscription = finalText
-                    // Emit via onResult for AppState to handle (translation done in AppState)
                     let result = LiveResult(
                         originalText: finalText,
                         translatedText: nil,  // AppState will handle translation
@@ -232,7 +279,7 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
                 accumulatedTranscription = ""
             }
 
-            // Interrupted — discard
+            // Interrupted — discard partial accumulation
             if serverContent["interrupted"] as? Bool == true {
                 accumulatedTranscription = ""
             }
@@ -268,12 +315,14 @@ final class GeminiLiveService: NSObject, @unchecked Sendable, URLSessionWebSocke
     // MARK: - URLSessionWebSocketDelegate
 
     nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didOpenWithProtocol protocol: String?) {
-        // Connected
+        // Connected — setup will be sent from connect()
     }
 
     nonisolated func urlSession(_ session: URLSession, webSocketTask: URLSessionWebSocketTask, didCloseWith closeCode: URLSessionWebSocketTask.CloseCode, reason: Data?) {
         Task { @MainActor [weak self] in
             self?.isConnected = false
+            self?.isSetupComplete = false
+            self?.pingTask?.cancel()
             self?.onConnectionStateChanged?(false)
         }
     }

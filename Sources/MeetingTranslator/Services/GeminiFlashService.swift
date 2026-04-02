@@ -1,10 +1,11 @@
 import Foundation
 
 /// Gemini 2.5 Flash REST API — single-call transcribe + translate via generateContent
-/// Supports context-hint stitching to reconnect dialogue cut across chunk boundaries
+/// Uses the stable `gemini-2.5-flash` model with retry logic for robustness.
+/// Supports context-hint stitching to reconnect dialogue cut across chunk boundaries.
 final class GeminiFlashService: @unchecked Sendable {
     private var apiKey: String
-    private let model = "gemini-2.5-flash-preview-04-17"
+    private let model = "gemini-2.5-flash"
 
     struct GeminiResult {
         let originalText: String
@@ -24,12 +25,7 @@ final class GeminiFlashService: @unchecked Sendable {
     // MARK: - Main Transcription Call
 
     /// Transcribe and translate PCM audio in a single API call.
-    /// - Parameters:
-    ///   - pcmData: Raw 16-bit PCM at 16kHz mono
-    ///   - targetLanguage: Display name of target language (e.g. "Chinese")
-    ///   - targetISOCode: ISO 639-1 code (e.g. "zh")
-    ///   - previousContext: Last ~30 chars of the previous segment for stitching continuity
-    ///   - isOverlapChunk: If true, the first ~1.5s of audio overlaps with the previous chunk
+    /// Includes automatic retry with exponential backoff for transient failures.
     func transcribeAndTranslate(
         pcmData: Data,
         targetLanguage: String,
@@ -46,14 +42,63 @@ final class GeminiFlashService: @unchecked Sendable {
         let endpoint = "https://generativelanguage.googleapis.com/v1beta/models/\(model):generateContent?key=\(apiKey)"
         guard let url = URL(string: endpoint) else { throw GeminiError.invalidURL }
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = 30
+        let body = buildRequestBody(
+            base64Audio: base64Audio,
+            targetLanguage: targetLanguage,
+            targetISOCode: targetISOCode,
+            previousContext: previousContext,
+            isOverlapChunk: isOverlapChunk,
+            inputLanguageCodes: inputLanguageCodes
+        )
 
+        var lastError: Error = GeminiError.invalidResponse
+        let maxRetries = 2
+
+        for attempt in 0...maxRetries {
+            if attempt > 0 {
+                let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                try? await Task.sleep(nanoseconds: delay)
+            }
+
+            do {
+                let result = try await performRequest(url: url, body: body)
+                return result
+            } catch let error as GeminiError {
+                lastError = error
+                switch error {
+                case .apiError(let statusCode, _):
+                    if [429, 500, 502, 503].contains(statusCode) {
+                        continue  // Retry on transient errors
+                    }
+                    throw error
+                default:
+                    throw error
+                }
+            } catch {
+                lastError = error
+                let desc = error.localizedDescription
+                if desc.contains("timed out") || desc.contains("network") || desc.contains("connection") {
+                    continue  // Retry on network errors
+                }
+                throw error
+            }
+        }
+
+        throw lastError
+    }
+
+    // MARK: - Request Building
+
+    private func buildRequestBody(
+        base64Audio: String,
+        targetLanguage: String,
+        targetISOCode: String,
+        previousContext: String?,
+        isOverlapChunk: Bool,
+        inputLanguageCodes: [String]
+    ) -> [String: Any] {
         let targetLangDescription = buildTargetLangDescription(targetLanguage: targetLanguage, targetISOCode: targetISOCode)
 
-        // Build context-hint section for stitching
         var contextSection = ""
         if let ctx = previousContext, !ctx.isEmpty {
             contextSection = """
@@ -76,18 +121,17 @@ Start your transcription from new content only.
 """
         }
 
-        // Build input language hint section
         var inputLangSection = ""
         if !inputLanguageCodes.isEmpty {
             let langList = inputLanguageCodes.joined(separator: ", ")
             inputLangSection = """
 
-        INPUT LANGUAGE HINT:
-        The speaker is expected to speak one of these languages: [\(langList)].
-        Use this to disambiguate ambiguous audio. For example, if audio could be Chinese or Japanese,
-        prefer the language in this list. If the audio clearly sounds like a different language not in
-        this list, still transcribe it correctly.
-        """
+INPUT LANGUAGE HINT:
+The speaker is expected to speak one of these languages: [\(langList)].
+Use this to disambiguate ambiguous audio. For example, if audio could be Chinese or Japanese,
+prefer the language in this list. If the audio clearly sounds like a different language not in
+this list, still transcribe it correctly.
+"""
         }
 
         let systemPrompt = """
@@ -112,7 +156,7 @@ Start your transcription from new content only.
         {"original":"exact transcription","language":"xx","translated":"translation or null"}
         """
 
-        let body: [String: Any] = [
+        return [
             "system_instruction": [
                 "parts": [["text": systemPrompt]]
             ],
@@ -135,6 +179,15 @@ Start your transcription from new content only.
                 "responseMimeType": "application/json"
             ]
         ]
+    }
+
+    // MARK: - Request Execution
+
+    private func performRequest(url: URL, body: [String: Any]) async throws -> GeminiResult {
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 30
 
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 

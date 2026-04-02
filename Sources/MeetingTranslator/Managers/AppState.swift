@@ -22,6 +22,11 @@ final class AppState: ObservableObject {
     @Published var showTranslations: Bool = true
     @Published var isGeminiLiveConnected: Bool = false
 
+    // MARK: - Recording Timer
+    @Published var recordingElapsedSeconds: Int = 0
+    private var recordingStartDate: Date?
+    private var recordingTimer: Task<Void, Never>?
+
     // MARK: - Pipeline Timing Settings (user-configurable)
     /// Fast draft interval in seconds (Layer 1). Default 3s.
     @Published var fastInterval: Double = 3.0
@@ -49,6 +54,21 @@ final class AppState: ObservableObject {
     private var geminiQualityBuffer = Data()
     private var overlapTailData = Data()
     private let overlapTailBytes = Int(1.5 * 16000 * 2)  // 1.5s at 16kHz 16-bit
+
+    /// Maximum buffer size: ~60s of audio at 16kHz 16-bit mono = ~1.92MB
+    /// Prevents unbounded memory growth during long sessions
+    private let maxBufferBytes = Int(60 * 16000 * 2)
+
+    /// Maximum entries to keep in memory — older confirmed entries are trimmed
+    private let maxEntries = 500
+
+    /// Consecutive error counter for circuit-breaker pattern
+    private var consecutiveErrors = 0
+    private let maxConsecutiveErrors = 5
+
+    /// Gemini Live auto-reconnect tracking
+    private var geminiLiveReconnectAttempts = 0
+    private let maxGeminiLiveReconnectAttempts = 5
 
     // MARK: - Pipeline Timers
     private var fastTimer: Task<Void, Never>?
@@ -311,13 +331,65 @@ final class AppState: ObservableObject {
     private func routeAudioChunk(_ data: Data, source: TranscriptionEntry.AudioSource) {
         switch selectedEngine {
         case .geminiLive:
-            if isGeminiLiveConnected { geminiLiveService.sendAudio(data) }
+            if isGeminiLiveConnected {
+                geminiLiveService.sendAudio(data)
+            } else if isRecording {
+                // Auto-reconnect if disconnected during recording
+                attemptGeminiLiveReconnect()
+            }
         case .geminiFlash:
             fastBuffer.append(data)
             geminiQualityBuffer.append(data)
+            // Cap buffer sizes to prevent unbounded memory growth
+            capBufferIfNeeded(&fastBuffer)
+            capBufferIfNeeded(&geminiQualityBuffer)
         case .openAI:
             fastBuffer.append(data)
             stitchBuffer.append(data)
+            capBufferIfNeeded(&fastBuffer)
+            capBufferIfNeeded(&stitchBuffer)
+        }
+    }
+
+    /// Trim buffer to keep only the most recent audio if it exceeds the max
+    private func capBufferIfNeeded(_ buffer: inout Data) {
+        if buffer.count > maxBufferBytes {
+            buffer = buffer.suffix(maxBufferBytes)
+        }
+    }
+
+    /// Trim old confirmed entries to prevent unbounded memory growth
+    private func trimEntriesIfNeeded() {
+        guard entries.count > maxEntries else { return }
+        let excess = entries.count - maxEntries
+        // Remove oldest confirmed (non-draft) entries
+        var removed = 0
+        entries.removeAll { entry in
+            guard removed < excess, !entry.isDraft else { return false }
+            removed += 1
+            return true
+        }
+    }
+
+    /// Auto-reconnect Gemini Live with exponential backoff
+    private func attemptGeminiLiveReconnect() {
+        guard geminiLiveReconnectAttempts < maxGeminiLiveReconnectAttempts else {
+            showError("Gemini Live: max reconnect attempts reached. Please restart.")
+            return
+        }
+        geminiLiveReconnectAttempts += 1
+        let delay = UInt64(pow(2.0, Double(geminiLiveReconnectAttempts))) * 1_000_000_000
+        statusMessage = "Reconnecting Gemini Live (\(geminiLiveReconnectAttempts)/\(maxGeminiLiveReconnectAttempts))..."
+        Task {
+            try? await Task.sleep(nanoseconds: delay)
+            guard self.isRecording, self.selectedEngine == .geminiLive, !self.isGeminiLiveConnected else { return }
+            do {
+                try await self.geminiLiveService.connect()
+                self.geminiLiveReconnectAttempts = 0  // Reset on success
+                self.statusMessage = "Listening..."
+            } catch {
+                self.showError("Reconnect failed: \(error.localizedDescription.prefix(40))")
+            }
         }
     }
 
@@ -431,6 +503,7 @@ final class AppState: ObservableObject {
 
         isRecording = true
         statusMessage = "Listening..."
+        startRecordingTimer()
         startPipelineTimers()
     }
 
@@ -442,6 +515,7 @@ final class AppState: ObservableObject {
         if selectedEngine == .geminiLive { geminiLiveService.disconnect() }
 
         isRecording = false
+        stopRecordingTimer()
 
         // Finalize any remaining drafts — promote them to confirmed so they don't stay as "draft"
         finalizeDraftEntries()
@@ -501,6 +575,38 @@ final class AppState: ObservableObject {
         }
         out += "\n" + costTracker.exportLog()
         return out
+    }
+
+    // MARK: - Recording Timer
+
+    private func startRecordingTimer() {
+        recordingStartDate = Date()
+        recordingElapsedSeconds = 0
+        recordingTimer = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                guard let self = self, self.isRecording else { break }
+                if let start = self.recordingStartDate {
+                    self.recordingElapsedSeconds = Int(Date().timeIntervalSince(start))
+                }
+            }
+        }
+    }
+
+    private func stopRecordingTimer() {
+        recordingTimer?.cancel()
+        recordingTimer = nil
+    }
+
+    /// Format elapsed seconds as HH:MM:SS or MM:SS
+    var recordingTimeFormatted: String {
+        let h = recordingElapsedSeconds / 3600
+        let m = (recordingElapsedSeconds % 3600) / 60
+        let s = recordingElapsedSeconds % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
     }
 
     // MARK: - Pipeline State
@@ -634,6 +740,8 @@ final class AppState: ObservableObject {
             )
             entries.append(entry)
             draftEntryIDs.insert(entry.id)
+            trimEntriesIfNeeded()
+            markProcessingSuccess()
 
             if !sameLanguage {
                 do {
@@ -743,6 +851,8 @@ final class AppState: ObservableObject {
                 isQualityResult: true
             )
             insertEntryChronologically(stitchedEntry)
+            trimEntriesIfNeeded()
+            markProcessingSuccess()
 
             lastConfirmedText = text
             lastConfirmedTranslation = translated
@@ -799,6 +909,8 @@ final class AppState: ObservableObject {
             )
             entries.append(entry)
             draftEntryIDs.insert(entry.id)
+            trimEntriesIfNeeded()
+            markProcessingSuccess()
         } catch {
             handleProcessingError(error)
         }
@@ -882,6 +994,7 @@ final class AppState: ObservableObject {
             lastConfirmedText = text
             lastConfirmedTranslation = result.translatedText
             lastConfirmedLanguage = result.detectedLanguage
+            markProcessingSuccess()
 
         } catch {
             handleProcessingError(error)
@@ -971,12 +1084,43 @@ final class AppState: ObservableObject {
     // MARK: - Error Handling
 
     private func handleProcessingError(_ error: Error) {
+        consecutiveErrors += 1
         let msg = error.localizedDescription
-        if msg.contains("401") { showError("Invalid API key. Check Settings.")
-        } else if msg.contains("429") { showError("Rate limited. Waiting...")
-        } else if msg.contains("timeout") || msg.contains("Timeout") { showError("Request timed out.")
-        } else if msg.contains("404") { showError("Model not found. Check engine settings.")
-        } else { showError("Error: \(msg.prefix(80))") }
+
+        if msg.contains("401") {
+            showError("Invalid API key. Check Settings.")
+            // Don't count auth errors toward circuit breaker — they won't self-heal
+            consecutiveErrors = 0
+        } else if msg.contains("429") {
+            showError("Rate limited. Backing off...")
+        } else if msg.contains("timeout") || msg.contains("Timeout") || msg.contains("timed out") {
+            showError("Request timed out. Retrying...")
+        } else if msg.contains("404") {
+            showError("Model not found. Check engine settings.")
+            consecutiveErrors = 0  // Won't self-heal
+        } else {
+            showError("Error: \(msg.prefix(80))")
+        }
+
+        // Circuit breaker: if too many consecutive errors, pause pipeline briefly
+        if consecutiveErrors >= maxConsecutiveErrors {
+            showError("Multiple failures detected. Pausing 10s before retry...")
+            Task {
+                // Temporarily pause pipeline timers to let things cool down
+                stopPipelineTimers()
+                try? await Task.sleep(nanoseconds: 10_000_000_000)
+                if self.isRecording {
+                    self.consecutiveErrors = 0
+                    self.startPipelineTimers()
+                    self.statusMessage = "Listening..."
+                }
+            }
+        }
+    }
+
+    /// Called on successful processing to reset the error counter
+    private func markProcessingSuccess() {
+        consecutiveErrors = 0
     }
 
     private func showError(_ message: String) {
