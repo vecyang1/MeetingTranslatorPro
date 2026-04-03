@@ -286,7 +286,8 @@ struct ContentView: View {
                             ForEach(appState.entries) { entry in
                                 TranscriptionRowView(
                                     entry: entry,
-                                    showTranslation: appState.showTranslations
+                                    showTranslation: appState.showTranslations,
+                                    targetLanguage: appState.targetLanguage
                                 )
                                 .id(entry.id)
                             }

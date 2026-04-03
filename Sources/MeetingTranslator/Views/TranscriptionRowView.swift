@@ -4,6 +4,7 @@ import SwiftUI
 struct TranscriptionRowView: View {
     let entry: TranscriptionEntry
     let showTranslation: Bool
+    let targetLanguage: SupportedLanguage
 
     private let timeFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -63,8 +64,8 @@ struct TranscriptionRowView: View {
                     .textSelection(.enabled)
                     .lineSpacing(4)
 
-                // Translation
-                if showTranslation {
+                // Translation — hide when detected language matches target (avoids duplicate text)
+                if showTranslation && !isSameAsTarget {
                     if entry.isTranslating {
                         HStack(spacing: 6) {
                             ProgressView()
@@ -159,6 +160,12 @@ struct TranscriptionRowView: View {
             return Color.green.opacity(0.06)
         }
         return Color.accentColor.opacity(0.07)
+    }
+
+    /// Whether the detected language is the same as the output target language
+    private var isSameAsTarget: Bool {
+        guard let code = entry.detectedLanguage?.lowercased() else { return false }
+        return targetLanguage.allISOCodes.contains(code)
     }
 
     // MARK: - CJK Line Wrapping

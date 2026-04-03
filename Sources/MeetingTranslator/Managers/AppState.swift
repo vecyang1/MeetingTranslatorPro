@@ -728,12 +728,13 @@ final class AppState: ObservableObject {
             }
 
             let sameLanguage = isSameLanguage(detected: result.language, target: targetLanguage)
+            let needsTranslation = !sameLanguage && showTranslations
             let speakerLabel = buildSpeakerLabel(source: source, language: result.language)
 
             let entry = TranscriptionEntry(
                 originalText: text,
                 detectedLanguage: result.language,
-                isTranslating: !sameLanguage,
+                isTranslating: needsTranslation,
                 source: source,
                 speakerLabel: speakerLabel,
                 isDraft: true
@@ -743,7 +744,7 @@ final class AppState: ObservableObject {
             trimEntriesIfNeeded()
             markProcessingSuccess()
 
-            if !sameLanguage {
+            if needsTranslation {
                 do {
                     let translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
                     let inputTokens = text.count / 4 + 50
@@ -759,6 +760,7 @@ final class AppState: ObservableObject {
                     }
                 }
             } else {
+                // Same language or translations disabled — no API call needed
                 if let idx = entries.firstIndex(where: { $0.id == entry.id }) {
                     entries[idx].isTranslating = false
                 }
@@ -824,11 +826,12 @@ final class AppState: ObservableObject {
             }
 
             let sameLanguage = isSameLanguage(detected: result.language, target: targetLanguage)
+            let needsTranslation = !sameLanguage && showTranslations
             let source: TranscriptionEntry.AudioSource = isMicEnabled ? .microphone : .system
             let speakerLabel = buildSpeakerLabel(source: source, language: result.language)
 
             var translated: String? = nil
-            if !sameLanguage {
+            if needsTranslation {
                 do {
                     translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
                     let inputTokens = text.count / 4 + 50
@@ -896,11 +899,12 @@ final class AppState: ObservableObject {
             }
 
             let sameLanguage = isSameLanguage(detected: result.detectedLanguage, target: targetLanguage)
+            let useTranslation = !sameLanguage && showTranslations
             let speakerLabel = buildSpeakerLabel(source: source, language: result.detectedLanguage)
 
             let entry = TranscriptionEntry(
                 originalText: text,
-                translatedText: sameLanguage ? nil : result.translatedText,
+                translatedText: useTranslation ? result.translatedText : nil,
                 detectedLanguage: result.detectedLanguage,
                 isTranslating: false,
                 source: source,
@@ -973,6 +977,7 @@ final class AppState: ObservableObject {
             }
 
             let sameLanguage = isSameLanguage(detected: result.detectedLanguage, target: targetLanguage)
+            let useTranslation = !sameLanguage && showTranslations
             let source: TranscriptionEntry.AudioSource = isMicEnabled ? .microphone : .system
             let speakerLabel = buildSpeakerLabel(source: source, language: result.detectedLanguage)
 
@@ -981,7 +986,7 @@ final class AppState: ObservableObject {
             let qualityEntry = TranscriptionEntry(
                 timestamp: windowStart,
                 originalText: text,
-                translatedText: sameLanguage ? nil : result.translatedText,
+                translatedText: useTranslation ? result.translatedText : nil,
                 detectedLanguage: result.detectedLanguage,
                 isTranslating: false,
                 source: source,
@@ -1030,20 +1035,21 @@ final class AppState: ObservableObject {
 
         let detectedLang = detectLanguageFromText(text)
         let sameLanguage = isSameLanguage(detected: detectedLang, target: targetLanguage)
+        let needsTranslation = !sameLanguage && showTranslations
         let speakerLabel = buildSpeakerLabel(source: .system, language: detectedLang)
 
         let entry = TranscriptionEntry(
             originalText: text,
             translatedText: nil,
             detectedLanguage: detectedLang,
-            isTranslating: !sameLanguage,
+            isTranslating: needsTranslation,
             source: .system,
             speakerLabel: speakerLabel,
             isDraft: false
         )
         entries.append(entry)
 
-        if !sameLanguage {
+        if needsTranslation {
             do {
                 let translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
                 if let idx = entries.firstIndex(where: { $0.id == entry.id }) {
