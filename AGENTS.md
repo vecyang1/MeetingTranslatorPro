@@ -103,7 +103,24 @@ Whisper and Gemini can produce hallucinated text (e.g., "Thank you for watching"
 
 ---
 
-## 10. Memory & Safety Guards
+## 10. Echo / Duplicate Suppression
+
+When both microphone and system audio are enabled, the user's voice can be captured twice: once directly by the mic, and once by system audio (speaker loopback). This produces near-duplicate transcription entries.
+
+The app uses **post-transcription deduplication** via character-bigram Dice coefficient similarity. Before any new entry is appended, `isDuplicateOfRecent()` checks if the text is >70% similar to any entry from the last 15 seconds. If so, the new entry is silently dropped.
+
+**Where it's applied:**
+- Layer 1 Fast Draft (OpenAI and Gemini Flash)
+- Gemini Live handler
+
+**Where it's NOT applied (intentionally):**
+- Layer 2 Stitch/Quality passes — these replace draft entries and are expected to produce similar text.
+
+**Rule:** Do not apply echo dedup to Layer 2 passes. Do not lower the threshold below 0.60 or you'll start dropping legitimately similar but different sentences. Do not raise it above 0.85 or echo duplicates will slip through.
+
+---
+
+## 11. Memory & Safety Guards
 
 - **Buffer cap:** Audio buffers are capped at ~60s (`maxBufferBytes`) to prevent unbounded memory growth.
 - **Entry cap:** Maximum 500 entries in memory (`maxEntries`). Oldest confirmed entries are trimmed.

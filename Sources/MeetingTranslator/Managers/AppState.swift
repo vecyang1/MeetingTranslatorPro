@@ -220,6 +220,71 @@ final class AppState: ObservableObject {
         return false
     }
 
+    // MARK: - Echo / Duplicate Suppression
+
+    /// Maximum time window (seconds) to look back for duplicate entries
+    private let echoDedupWindowSeconds: TimeInterval = 15.0
+
+    /// Similarity threshold (0.0–1.0). Entries with similarity above this are considered duplicates.
+    /// 0.70 = 70% character overlap — catches echo while allowing legitimately similar sentences.
+    private let echoDedupThreshold: Double = 0.70
+
+    /// Check if a new transcription text is a near-duplicate of any recent entry.
+    /// Uses character-level bigram similarity (Dice coefficient) which is fast and language-agnostic.
+    /// Returns true if the text should be dropped as an echo duplicate.
+    private func isDuplicateOfRecent(_ text: String, within window: TimeInterval? = nil) -> Bool {
+        let lookback = window ?? echoDedupWindowSeconds
+        let cutoff = Date().addingTimeInterval(-lookback)
+        let normalizedNew = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard normalizedNew.count >= 4 else { return false }  // Too short to judge
+
+        let newBigrams = characterBigrams(normalizedNew)
+        guard !newBigrams.isEmpty else { return false }
+
+        // Check recent entries (walk backwards for efficiency)
+        for entry in entries.reversed() {
+            // Stop once we're outside the time window
+            if entry.timestamp < cutoff { break }
+
+            let existing = entry.originalText.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+            guard existing.count >= 4 else { continue }
+
+            let existingBigrams = characterBigrams(existing)
+            let similarity = diceCoefficient(newBigrams, existingBigrams)
+            if similarity >= echoDedupThreshold {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Generate character bigrams from a string (language-agnostic, works for CJK and Latin)
+    private func characterBigrams(_ text: String) -> [String: Int] {
+        let chars = Array(text)
+        guard chars.count >= 2 else { return [:] }
+        var bigrams: [String: Int] = [:]
+        for i in 0..<(chars.count - 1) {
+            let bg = String(chars[i]) + String(chars[i + 1])
+            bigrams[bg, default: 0] += 1
+        }
+        return bigrams
+    }
+
+    /// Dice coefficient between two bigram frequency maps (0.0–1.0)
+    private func diceCoefficient(_ a: [String: Int], _ b: [String: Int]) -> Double {
+        let totalA = a.values.reduce(0, +)
+        let totalB = b.values.reduce(0, +)
+        guard totalA > 0, totalB > 0 else { return 0.0 }
+
+        var intersection = 0
+        for (bigram, countA) in a {
+            if let countB = b[bigram] {
+                intersection += min(countA, countB)
+            }
+        }
+        return (2.0 * Double(intersection)) / Double(totalA + totalB)
+    }
+
     // MARK: - RMS Energy Check
 
     /// Calculate RMS energy of PCM audio (16-bit signed, little-endian)
@@ -727,6 +792,9 @@ final class AppState: ObservableObject {
                 guard !text.isEmpty else { return }
             }
 
+            // Echo suppression — drop if near-duplicate of a recent entry
+            guard !isDuplicateOfRecent(text) else { return }
+
             let sameLanguage = isSameLanguage(detected: result.language, target: targetLanguage)
             let needsTranslation = !sameLanguage && showTranslations
             let speakerLabel = buildSpeakerLabel(source: source, language: result.language)
@@ -898,6 +966,9 @@ final class AppState: ObservableObject {
                 guard !text.isEmpty else { return }
             }
 
+            // Echo suppression — drop if near-duplicate of a recent entry
+            guard !isDuplicateOfRecent(text) else { return }
+
             let sameLanguage = isSameLanguage(detected: result.detectedLanguage, target: targetLanguage)
             let useTranslation = !sameLanguage && showTranslations
             let speakerLabel = buildSpeakerLabel(source: source, language: result.detectedLanguage)
@@ -1030,6 +1101,9 @@ final class AppState: ObservableObject {
     private func handleGeminiLiveResult(_ result: GeminiLiveService.LiveResult) async {
         let text = result.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isHallucination(text) else { return }
+
+        // Echo suppression — drop if near-duplicate of a recent entry
+        guard !isDuplicateOfRecent(text) else { return }
 
         costTracker.logGeminiLive(audioDurationSeconds: Double(text.count) / 20.0, outputTokens: result.outputTokens)
 
