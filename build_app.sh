@@ -7,6 +7,8 @@ APP_NAME="Meeting Translator"
 BUNDLE_NAME="MeetingTranslator"
 BUILD_DIR="$PROJECT_DIR/build"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
+INSTALL_DIR="/Applications"
+INSTALL_APP="$INSTALL_DIR/$BUNDLE_NAME.app"
 
 echo "=== Building Meeting Translator ==="
 echo "Project: $PROJECT_DIR"
@@ -70,83 +72,12 @@ cp "$PROJECT_DIR/Resources/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
 # Create PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
-# Generate app icon using Python (creates a simple gradient icon)
-python3 << 'PYTHON_SCRIPT'
-import struct
-import zlib
-import os
-
-def create_png(width, height, pixels):
-    """Create a minimal PNG file from pixel data."""
-    def chunk(chunk_type, data):
-        c = chunk_type + data
-        crc = struct.pack('>I', zlib.crc32(c) & 0xffffffff)
-        return struct.pack('>I', len(data)) + c + crc
-
-    header = b'\x89PNG\r\n\x1a\n'
-    ihdr = chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 6, 0, 0, 0))
-
-    raw = b''
-    for y in range(height):
-        raw += b'\x00'  # filter none
-        for x in range(width):
-            raw += bytes(pixels[y * width + x])
-
-    idat = chunk(b'IDAT', zlib.compress(raw))
-    iend = chunk(b'IEND', b'')
-
-    return header + ihdr + idat + iend
-
-size = 512
-pixels = []
-for y in range(size):
-    for x in range(size):
-        # Gradient from blue to purple
-        t = (x + y) / (2 * size)
-        r = int(60 + t * 120)
-        g = int(80 + (1-t) * 60)
-        b = int(200 + t * 55)
-
-        # Circle mask with anti-aliasing
-        cx, cy = size/2, size/2
-        radius = size * 0.45
-        dist = ((x - cx)**2 + (y - cy)**2)**0.5
-
-        if dist < radius - 2:
-            alpha = 255
-        elif dist < radius + 2:
-            alpha = int(255 * max(0, (radius + 2 - dist) / 4))
-        else:
-            alpha = 0
-
-        # Add waveform-like pattern in center
-        center_y = size / 2
-        wave_height = size * 0.15
-        wave_x = (x - size * 0.25) / (size * 0.5)
-        if 0 <= wave_x <= 1 and alpha > 0:
-            import math
-            wave = math.sin(wave_x * math.pi * 4) * wave_height * (1 - abs(wave_x - 0.5) * 2)
-            if abs(y - center_y - wave) < size * 0.02:
-                r, g, b = 255, 255, 255
-
-        pixels.append((r, g, b, alpha))
-
-png_data = create_png(size, size, pixels)
-
-build_dir = os.environ.get('BUILD_DIR', 'build')
-icon_path = os.path.join(build_dir, 'icon.png')
-with open(icon_path, 'wb') as f:
-    f.write(png_data)
-print(f"Icon created: {icon_path}")
-PYTHON_SCRIPT
-
-# Create .icns from PNG
+# Create app icon from Resources/AppIcon.png (1024x1024 source icon)
 echo "Creating app icon..."
+ICON_PNG="$PROJECT_DIR/Resources/AppIcon.png"
 ICONSET_DIR="$BUILD_DIR/AppIcon.iconset"
 mkdir -p "$ICONSET_DIR"
 
-# Use sips to resize the icon for all required sizes
-ICON_PNG="$BUILD_DIR/icon.png"
 if [ -f "$ICON_PNG" ]; then
     sips -z 16 16 "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16.png" 2>/dev/null
     sips -z 32 32 "$ICON_PNG" --out "$ICONSET_DIR/icon_16x16@2x.png" 2>/dev/null
@@ -157,9 +88,12 @@ if [ -f "$ICON_PNG" ]; then
     sips -z 256 256 "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256.png" 2>/dev/null
     sips -z 512 512 "$ICON_PNG" --out "$ICONSET_DIR/icon_256x256@2x.png" 2>/dev/null
     sips -z 512 512 "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512.png" 2>/dev/null
-    cp "$ICON_PNG" "$ICONSET_DIR/icon_512x512@2x.png"
+    sips -z 1024 1024 "$ICON_PNG" --out "$ICONSET_DIR/icon_512x512@2x.png" 2>/dev/null
 
     iconutil -c icns "$ICONSET_DIR" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns" 2>/dev/null || echo "iconutil not available, using PNG icon"
+    echo "App icon created from Resources/AppIcon.png"
+else
+    echo "WARNING: Resources/AppIcon.png not found — app will have no icon"
 fi
 
 # Sign the app with a stable certificate so macOS doesn't reset permissions on each rebuild.
@@ -184,11 +118,19 @@ else
         "$APP_BUNDLE" 2>/dev/null || echo "Codesign completed with notes"
 fi
 
+# Install to /Applications
+echo ""
+echo "Installing to $INSTALL_APP ..."
+rm -rf "$INSTALL_APP"
+cp -R "$APP_BUNDLE" "$INSTALL_APP"
+echo "Installed to $INSTALL_APP"
+
 echo ""
 echo "=== Build Complete ==="
 echo "App bundle: $APP_BUNDLE"
+echo "Installed:  $INSTALL_APP"
 echo ""
-echo "To run: open \"$APP_BUNDLE\""
+echo "To run: open \"$INSTALL_APP\""
 echo ""
 echo "IMPORTANT: On first launch, macOS will ask for:"
 echo "  1. Microphone permission — for capturing your voice"
