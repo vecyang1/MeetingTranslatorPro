@@ -107,11 +107,11 @@ final class CostTracker: ObservableObject {
     // MARK: - Formatted Strings
 
     var sessionCostFormatted: String {
-        String(format: "$%.4f", sessionCost)
+        String(format: "$%.2f", sessionCost)
     }
 
     var totalCostFormatted: String {
-        String(format: "$%.4f", totalCost)
+        String(format: "$%.2f", totalCost)
     }
 
     func exportLog() -> String {
