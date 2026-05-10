@@ -66,6 +66,44 @@ struct RealtimeCoreSmoke {
         let upsampled = AudioResampler.resamplePCM16Mono(pcm16, fromSampleRate: 16_000, toSampleRate: 24_000)
         precondition(upsampled.count == 240 * 2)
 
+        precondition(RealtimeCaptionLatencyPreset.aggressive.realtimeCaptureChunkDuration < RealtimeCaptionLatencyPreset.balanced.realtimeCaptureChunkDuration)
+        precondition(RealtimeCaptionLatencyPreset.balanced.realtimeCaptureChunkDuration <= 1.0)
+
+        let realtimeID = UUID()
+        var draftIDs: Set<UUID> = [UUID()]
+        var entries = [
+            TranscriptionEntry(
+                id: realtimeID,
+                originalText: "live partial text",
+                detectedLanguage: "en",
+                isDraft: true,
+                realtimeItemID: "item_live"
+            ),
+            TranscriptionEntry(
+                originalText: "legacy draft text",
+                detectedLanguage: "en",
+                isDraft: true
+            ),
+            TranscriptionEntry(
+                originalText: "",
+                detectedLanguage: "en",
+                isDraft: true,
+                realtimeItemID: "item_empty"
+            )
+        ]
+
+        let finals = RealtimeDraftFinalizer.collectRealtimeDraftFinals(entries: &entries, draftEntryIDs: &draftIDs) { entry in
+            entry.originalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+
+        precondition(finals.count == 1)
+        precondition(finals.first?.itemID == "item_live")
+        precondition(finals.first?.text == "live partial text")
+        precondition(entries.contains { $0.id == realtimeID && $0.isDraft && $0.originalText == "live partial text" })
+        precondition(entries.contains { $0.realtimeItemID == nil && !$0.isDraft && $0.originalText == "legacy draft text" })
+        precondition(!entries.contains { $0.realtimeItemID == "item_empty" })
+        precondition(draftIDs.isEmpty)
+
         print("realtime core smoke ok")
     }
 }

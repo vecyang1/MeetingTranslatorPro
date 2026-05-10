@@ -25,3 +25,5 @@
 ### Fixed
 
 - Removed unsupported `server_vad` turn detection from `gpt-realtime-whisper` sessions and explicitly commit each appended realtime transcription chunk.
+- Fixed realtime caption latency and disappearing live text by using continuous latency-preset capture chunks and preserving non-empty realtime partial rows during cleanup/finalization.
+- Fixed intentional realtime Stop/disconnect so heartbeat shutdown errors do not switch the app to the legacy OpenAI fallback.

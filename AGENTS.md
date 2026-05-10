@@ -221,9 +221,12 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 **Protocol notes verified 2026-05-10:**
 - Transcription WebSocket URL: `wss://api.openai.com/v1/realtime?intent=transcription`.
 - Put `gpt-realtime-whisper` in `session.update`, not in the transcription URL query.
-- Do not configure `server_vad` turn detection for `gpt-realtime-whisper`; commit each app audio chunk explicitly after append.
+- Do not configure `server_vad` turn detection for `gpt-realtime-whisper`; set manual turn detection (`null`) and commit each app audio chunk explicitly after append.
+- Realtime capture must use continuous timer chunks based on `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration`; do not let VAD hold active speech until silence.
+- Non-empty realtime partial rows are user-visible state. On stop/cleanup, collect them as final candidates and pass them through the normal confirmation/filter gates rather than deleting them as disposable legacy drafts. Do not auto-promote stale partials while recording unless late-final replacement is explicitly handled.
 - Translation WebSocket URL: `/v1/realtime/translations?model=gpt-realtime-translate`.
 - A realtime session is ready only after `session.updated`; do not send user audio while still merely connected.
+- Intentional stop/disconnect must suppress WebSocket heartbeat/send errors; automatic fallback is for active recording failures, not normal shutdown.
 
 **Verification:**
 - Use `tools/realtime-foundation/realtime-foundation probe --mode ...` for no-audio model checks.

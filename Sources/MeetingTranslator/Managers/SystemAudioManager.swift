@@ -44,6 +44,21 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
 
     /// Duration in seconds for fallback timer
     var chunkDuration: TimeInterval = 5.0
+    private var continuousChunkingEnabled = false
+    private var minimumChunkDuration: TimeInterval = 1.0
+
+    func configureChunking(chunkDuration: TimeInterval, continuous: Bool) {
+        bufferLock.lock()
+        self.chunkDuration = max(0.2, chunkDuration)
+        self.continuousChunkingEnabled = continuous
+        self.minimumChunkDuration = continuous ? max(0.18, self.chunkDuration * 0.5) : 1.0
+        self.speechFrameCount = 0
+        self.silenceFrameCount = 0
+        self.isSpeechActive = false
+        self.speechBuffer = Data()
+        bufferLock.unlock()
+        restartChunkTimerIfCapturing()
+    }
 
     // MARK: - Permission Handling
 
@@ -143,22 +158,7 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
             self.chunkTimer = nil
         }
 
-        // Flush remaining
-        bufferLock.lock()
-        let remaining: Data
-        if isSpeechActive && speechBuffer.count > 0 {
-            remaining = speechBuffer
-        } else if accumulatedData.count > 0 {
-            remaining = accumulatedData
-        } else {
-            remaining = Data()
-        }
-        speechBuffer = Data()
-        accumulatedData = Data()
-        isSpeechActive = false
-        speechFrameCount = 0
-        silenceFrameCount = 0
-        bufferLock.unlock()
+        let remaining = drainRemainingAudio()
 
         let minBytes = Int(targetSampleRate * 2.0 * 0.5)
         if remaining.count >= minBytes {
@@ -223,6 +223,11 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
         // Always accumulate for fallback timer
         accumulatedData.append(data)
 
+        if continuousChunkingEnabled {
+            bufferLock.unlock()
+            return
+        }
+
         // VAD state machine
         if isSpeechFrame {
             speechFrameCount += 1
@@ -268,7 +273,7 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
     private func flushAccumulatedAudio() {
         bufferLock.lock()
 
-        if isSpeechActive {
+        if isSpeechActive && !continuousChunkingEnabled {
             bufferLock.unlock()
             return
         }
@@ -277,10 +282,40 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
         accumulatedData = Data()
         bufferLock.unlock()
 
-        let minBytes = Int(targetSampleRate * 2.0 * 1.0)
+        let minBytes = Int(targetSampleRate * 2.0 * minimumChunkDuration)
         if data.count >= minBytes {
             onAudioChunkReady?(data)
         }
+    }
+
+    private func restartChunkTimerIfCapturing() {
+        DispatchQueue.main.async {
+            guard self.isCapturing else { return }
+            self.chunkTimer?.invalidate()
+            self.chunkTimer = Timer.scheduledTimer(withTimeInterval: self.chunkDuration, repeats: true) { [weak self] _ in
+                self?.flushAccumulatedAudio()
+            }
+        }
+    }
+
+    private func drainRemainingAudio() -> Data {
+        bufferLock.lock()
+        defer { bufferLock.unlock() }
+
+        let remaining: Data
+        if isSpeechActive && speechBuffer.count > 0 {
+            remaining = speechBuffer
+        } else if accumulatedData.count > 0 {
+            remaining = accumulatedData
+        } else {
+            remaining = Data()
+        }
+        speechBuffer = Data()
+        accumulatedData = Data()
+        isSpeechActive = false
+        speechFrameCount = 0
+        silenceFrameCount = 0
+        return remaining
     }
 
     // MARK: - Helpers

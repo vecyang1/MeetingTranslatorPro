@@ -27,6 +27,10 @@ enum RealtimeCaptionLatencyPreset: String, CaseIterable, Identifiable {
         }
     }
 
+    var realtimeCaptureChunkDuration: TimeInterval {
+        targetDelaySeconds
+    }
+
     var description: String {
         switch self {
         case .aggressive:

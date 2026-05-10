@@ -18,6 +18,7 @@ Completed:
 - **M2:** Native Swift realtime services, router, coordinator, reducer, and 16 kHz to 24 kHz PCM boundary implemented without changing existing capture format.
 - **M3:** UI exposes `OpenAI Realtime (Recommended)`, realtime partial rows, caption latency settings, automatic fallback state, and translation-off rerouting.
 - **M4:** Build/sign/install passed; synthetic OpenAI realtime transcription and translation WebSocket probes passed; docs updated.
+- **Runtime hotfix:** Realtime captions now use continuous latency-preset chunks instead of VAD-held chunks, manual turn detection is explicit, and non-empty live partial rows are stop-finalized through the same confirmation/filter gates instead of disappearing when final events are delayed.
 
 Safety notes:
 
@@ -25,6 +26,7 @@ Safety notes:
 - Auto-detect and text-only translation start with realtime transcription and may translate final non-same text through the existing gated GPT text translation path.
 - Audio probes require an explicit CLI consent flag and should use synthetic or non-private fixtures.
 - Private live microphone/system-audio verification was not performed while the user was asleep; synthetic audio probes were used instead.
+- User screenshot feedback showed that VAD-first chunking made realtime captions appear late and draft cleanup could erase visible live text. This is now guarded by `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration` and `RealtimeDraftFinalizer`.
 
 Known follow-up:
 
@@ -281,7 +283,7 @@ Rules:
 - Partial rows may revise text.
 - Final rows pass through hallucination and duplicate checks before confirmation.
 - Ordering must use item IDs and timestamps because completion events can arrive out of order.
-- If a final event is missing, partial rows must expire or be promoted according to a documented timeout.
+- If a final event is missing while the session is stopped, visible partial rows are collected as final candidates and promoted through the same confirmation/filter gates. Stale partial auto-timeout during active recording is intentionally deferred until late-final replacement behavior is implemented.
 
 ### FR-006: Translation Gating
 

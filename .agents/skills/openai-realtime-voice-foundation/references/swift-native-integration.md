@@ -37,7 +37,13 @@ Normalize to app events before touching UI state.
 
 - Native transcription WebSocket uses `wss://api.openai.com/v1/realtime?intent=transcription`.
 - Do not add `model=gpt-realtime-whisper` to that transcription URL; pass `gpt-realtime-whisper` in `session.update` instead.
-- Do not send `server_vad` turn detection for `gpt-realtime-whisper`; commit each app audio chunk explicitly after `input_audio_buffer.append`.
+- Do not send `server_vad` turn detection for `gpt-realtime-whisper`; set turn detection to `null` and commit each app audio chunk explicitly after `input_audio_buffer.append`.
 - Mark a session ready only after `session.updated`, then allow audio chunks and cost logging.
 - Treat `*.delta` payloads as incremental text and accumulate by stable item/turn ID.
 - The realtime translation endpoint may emit output transcript/audio deltas without a stable `item_id`; keep a source-local fallback turn ID until a done/completed event.
+
+## 2026-05-10 Runtime Lesson
+
+- Realtime models only feel realtime if local capture keeps feeding them. The legacy VAD-first managers can hold active speech until silence, so OpenAI Realtime must enable continuous timer chunking.
+- Keep chunk duration owned by the latency preset: aggressive `0.4s`, balanced `1.0s`, accuracy `1.8s`.
+- Non-empty realtime partial rows are visible user state, not disposable legacy drafts. If final events lag or are missing on stop, collect the live row as a final candidate and run it through existing filters instead of deleting it on cleanup. Avoid active-recording stale-timeout promotion unless late provider finals can replace the promoted text safely.

@@ -502,8 +502,10 @@ Realtime service ownership:
 - `RealtimeModelRouter`: pure route decision.
 - `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation.
 - `AudioResampler`: explicit 16 kHz capture to 24 kHz PCM16 realtime boundary.
+- `RealtimeDraftFinalizer`: collects non-empty realtime live captions as stop-time final candidates so `AppState.confirmRealtimeEntry()` can apply the usual filters, while still dropping empty/hallucinated realtime drafts.
+- `OpenAIRealtimeWebSocketService`: suppresses heartbeat/send errors during intentional shutdown so Stop does not trigger legacy fallback.
 
-`gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app appends each 1-second PCM chunk and commits it explicitly.
+`gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app sets manual turn detection (`null`), appends latency-preset PCM chunks, and commits each chunk explicitly. Realtime capture uses continuous timer chunking, not the legacy VAD-first behavior, so active speech continues flowing before silence.
 
 App-level realtime events:
 
@@ -558,6 +560,7 @@ Audio chunks (1s each) ──► fastBuffer ──► Layer 1 (every fastInterva
 - `overlapTailData`: Last 1.5 seconds of the previous fast chunk, prepended to the next chunk for cross-boundary continuity
 - Buffers are capped at `maxBufferBytes` (60s) to prevent memory growth
 - On stop, remaining buffer contents are processed in a final pass
+- OpenAI Realtime bypasses `fastBuffer`/`stitchBuffer` and uses continuous mic/system chunks tied to the latency preset: Aggressive `0.4s`, Balanced `1.0s`, Accuracy `1.8s`. Non-realtime engines keep the existing VAD plus 1-second fallback timer behavior.
 
 ### 5.3 Noise Gate
 

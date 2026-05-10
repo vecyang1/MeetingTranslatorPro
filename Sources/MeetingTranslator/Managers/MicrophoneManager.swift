@@ -42,9 +42,24 @@ final class MicrophoneManager: ObservableObject {
 
     /// Duration in seconds for the fallback timer
     var chunkDuration: TimeInterval = 5.0
+    private var continuousChunkingEnabled = false
+    private var minimumChunkDuration: TimeInterval = 1.0
 
     init() {
         refreshDevices()
+    }
+
+    func configureChunking(chunkDuration: TimeInterval, continuous: Bool) {
+        bufferLock.lock()
+        self.chunkDuration = max(0.2, chunkDuration)
+        self.continuousChunkingEnabled = continuous
+        self.minimumChunkDuration = continuous ? max(0.18, self.chunkDuration * 0.5) : 1.0
+        self.speechFrameCount = 0
+        self.silenceFrameCount = 0
+        self.isSpeechActive = false
+        self.speechBuffer = Data()
+        bufferLock.unlock()
+        restartChunkTimerIfCapturing()
     }
 
     /// Refresh the list of available audio input devices
@@ -252,6 +267,11 @@ final class MicrophoneManager: ObservableObject {
         // Always accumulate for fallback timer
         accumulatedData.append(data)
 
+        if continuousChunkingEnabled {
+            bufferLock.unlock()
+            return
+        }
+
         // VAD state machine
         if isSpeechFrame {
             speechFrameCount += 1
@@ -299,7 +319,7 @@ final class MicrophoneManager: ObservableObject {
         bufferLock.lock()
 
         // If VAD is actively tracking speech, let VAD handle it
-        if isSpeechActive {
+        if isSpeechActive && !continuousChunkingEnabled {
             bufferLock.unlock()
             return
         }
@@ -309,10 +329,19 @@ final class MicrophoneManager: ObservableObject {
         lastChunkTime = Date()
         bufferLock.unlock()
 
-        // Only send if there's at least 1 second of audio
-        let minBytes = Int(targetSampleRate * 2.0 * 1.0)
+        let minBytes = Int(targetSampleRate * 2.0 * minimumChunkDuration)
         if data.count >= minBytes {
             onAudioChunkReady?(data)
+        }
+    }
+
+    private func restartChunkTimerIfCapturing() {
+        DispatchQueue.main.async {
+            guard self.isCapturing else { return }
+            self.chunkTimer?.invalidate()
+            self.chunkTimer = Timer.scheduledTimer(withTimeInterval: self.chunkDuration, repeats: true) { [weak self] _ in
+                self?.flushAccumulatedAudio()
+            }
         }
     }
 

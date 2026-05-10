@@ -1,6 +1,6 @@
 import Foundation
 
-final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService {
+final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService, @unchecked Sendable {
     private let model = OpenAIRealtimeModel.realtimeWhisper.rawValue
 
     override var sessionMode: RealtimeRouteMode { .transcription }
@@ -64,7 +64,8 @@ final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService {
                             "type": "audio/pcm",
                             "rate": 24000
                         ],
-                        "transcription": transcription
+                        "transcription": transcription,
+                        "turn_detection": NSNull()
                     ]
                 ]
             ]

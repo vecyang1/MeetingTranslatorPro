@@ -567,7 +567,7 @@ final class AppState: ObservableObject {
             if isRecording { statusMessage = state.userMessage }
         case .recoverableError(_, let message, _):
             showError(message)
-            if realtimeAutomaticFallback {
+            if isRecording && realtimeAutomaticFallback {
                 activateLegacyOpenAIFallback()
             }
         case .audioQueued(_, let mode, let audioDuration):
@@ -659,7 +659,13 @@ final class AppState: ObservableObject {
         trimEntriesIfNeeded()
     }
 
-    private func confirmRealtimeEntry(_ reduced: RealtimeReducedEntry) async {
+    private func confirmRealtimeEntry(
+        _ reduced: RealtimeReducedEntry,
+        modeOverride: RealtimeRouteMode? = nil,
+        applyDuplicatePrefix: Bool = true
+    ) async {
+        let realtimeMode = modeOverride ?? activeRealtimeMode
+
         if reduced.isTranslationOnly {
             let text = (reduced.translatedText ?? reduced.text).trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else {
@@ -699,7 +705,7 @@ final class AppState: ObservableObject {
             return
         }
 
-        if !lastConfirmedText.isEmpty {
+        if applyDuplicatePrefix && !lastConfirmedText.isEmpty {
             text = removeDuplicatePrefix(newText: text, previousText: lastConfirmedText)
             guard !text.isEmpty else {
                 removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
@@ -716,7 +722,7 @@ final class AppState: ObservableObject {
         let detected = reduced.language ?? detectLanguageFromText(text)
         let sameLanguage = isSameLanguage(detected: detected, target: targetLanguage)
         var translated = sameLanguage || !showTranslations ? nil : reduced.translatedText
-        if translated == nil && showTranslations && !sameLanguage && activeRealtimeMode != .translation {
+        if translated == nil && showTranslations && !sameLanguage && realtimeMode != .translation {
             do {
                 statusMessage = "Translating..."
                 translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
@@ -729,7 +735,7 @@ final class AppState: ObservableObject {
             entries[idx].originalText = text
             entries[idx].translatedText = translated
             entries[idx].detectedLanguage = detected
-            entries[idx].isTranslating = activeRealtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
+            entries[idx].isTranslating = realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
             entries[idx].speakerLabel = buildSpeakerLabel(source: reduced.source, language: detected)
             entries[idx].isDraft = false
             entries[idx].isQualityResult = false
@@ -739,7 +745,7 @@ final class AppState: ObservableObject {
                 originalText: text,
                 translatedText: translated,
                 detectedLanguage: detected,
-                isTranslating: activeRealtimeMode == .translation && translated == nil && showTranslations && !sameLanguage,
+                isTranslating: realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage,
                 source: reduced.source,
                 speakerLabel: buildSpeakerLabel(source: reduced.source, language: detected),
                 isDraft: false,
@@ -781,6 +787,7 @@ final class AppState: ObservableObject {
         stopOpenAIRealtimeSessions()
         stopPipelineTimers()
         selectedEngine = .openAI
+        configureAudioCaptureForSelectedEngine()
         fastBuffer = Data()
         stitchBuffer = Data()
         statusMessage = "Switched to legacy OpenAI fallback"
@@ -819,6 +826,9 @@ final class AppState: ObservableObject {
         geminiLiveService.updateAPIKey(googleAPIKey)
         geminiLiveService.updateTargetLanguage(targetLanguage.rawValue, isoCode: targetLanguage.isoCode)
         realtimeCoordinator.updateAPIKey(apiKey)
+        if isRecording {
+            configureAudioCaptureForSelectedEngine()
+        }
         if selectedEngine == .openAIRealtime,
            activeRealtimeMode == .translation,
            !shouldUseRealtimeTranslationSession(sameLanguage: specifiedInputMatchesTarget()) {
@@ -861,8 +871,7 @@ final class AppState: ObservableObject {
         costTracker.resetSession()
         resetPipelineState()
 
-        micManager.chunkDuration = 1.0
-        systemAudioManager.chunkDuration = 1.0
+        configureAudioCaptureForSelectedEngine()
 
         if selectedEngine == .geminiLive {
             Task {
@@ -913,21 +922,20 @@ final class AppState: ObservableObject {
     }
 
     func stopRecording() {
+        let engineAtStop = selectedEngine
+        let realtimeModeAtStop = activeRealtimeMode
+
         micManager.stopCapturing()
         Task { await systemAudioManager.stopCapturing() }
         stopPipelineTimers()
 
-        if selectedEngine == .geminiLive { geminiLiveService.disconnect() }
-        if selectedEngine == .openAIRealtime { stopOpenAIRealtimeSessions() }
+        if engineAtStop == .geminiLive { geminiLiveService.disconnect() }
+        if engineAtStop == .openAIRealtime { stopOpenAIRealtimeSessions() }
 
         isRecording = false
         stopRecordingTimer()
 
-        // Finalize any remaining drafts — promote them to confirmed so they don't stay as "draft"
-        finalizeDraftEntries()
-
-        // Process any remaining audio in the fast buffer (last partial chunk)
-        let remainingFast = fastBuffer
+        // Process any remaining audio in the quality buffers.
         let remainingStitch = stitchBuffer
         let remainingGemini = geminiQualityBuffer
         fastBuffer = Data(); stitchBuffer = Data(); geminiQualityBuffer = Data()
@@ -940,9 +948,11 @@ final class AppState: ObservableObject {
 
         // Run final stitch/quality pass on remaining audio
         Task {
-            if self.selectedEngine == .openAI && remainingStitch.count > Int(16000 * 2) {
+            await self.finalizeDraftEntries(realtimeMode: realtimeModeAtStop)
+
+            if engineAtStop == .openAI && remainingStitch.count > Int(16000 * 2) {
                 await self.processStitchLayerWithData(remainingStitch)
-            } else if self.selectedEngine == .geminiFlash && remainingGemini.count > Int(16000 * 2) {
+            } else if engineAtStop == .geminiFlash && remainingGemini.count > Int(16000 * 2) {
                 await self.processGeminiQualityLayerWithData(remainingGemini)
             }
             if !self.isRecording {
@@ -953,12 +963,14 @@ final class AppState: ObservableObject {
     }
 
     /// Promote all remaining draft entries to confirmed (remove draft badge)
-    private func finalizeDraftEntries() {
-        entries.removeAll { $0.isDraft && $0.realtimeItemID != nil }
-        for i in entries.indices where entries[i].isDraft {
-            entries[i].isDraft = false
+    private func finalizeDraftEntries(realtimeMode: RealtimeRouteMode?) async {
+        let realtimeFinals = RealtimeDraftFinalizer.collectRealtimeDraftFinals(entries: &entries, draftEntryIDs: &draftEntryIDs) { entry in
+            let text = entry.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty || isHallucination(text)
         }
-        draftEntryIDs.removeAll()
+        for reduced in realtimeFinals {
+            await confirmRealtimeEntry(reduced, modeOverride: realtimeMode, applyDuplicatePrefix: false)
+        }
     }
 
     func clearEntries() {
@@ -1030,6 +1042,13 @@ final class AppState: ObservableObject {
         stitchWindowStart = Date()
     }
 
+    private func configureAudioCaptureForSelectedEngine() {
+        let realtime = selectedEngine == .openAIRealtime
+        let chunkDuration = realtime ? realtimeCaptionLatency.realtimeCaptureChunkDuration : 1.0
+        micManager.configureChunking(chunkDuration: chunkDuration, continuous: realtime)
+        systemAudioManager.configureChunking(chunkDuration: chunkDuration, continuous: realtime)
+    }
+
     private func stopPipelineTimers() {
         fastTimer?.cancel(); fastTimer = nil
         stitchTimer?.cancel(); stitchTimer = nil
@@ -1043,9 +1062,12 @@ final class AppState: ObservableObject {
         fastTimer = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self = self else { break }
-                try? await Task.sleep(nanoseconds: UInt64(self.fastInterval * 1_000_000_000))
+                let interval = self.selectedEngine == .openAIRealtime ? 1.0 : self.fastInterval
+                try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 guard self.isRecording else { break }
-                await self.processFastLayer()
+                if self.selectedEngine != .openAIRealtime {
+                    await self.processFastLayer()
+                }
             }
         }
 

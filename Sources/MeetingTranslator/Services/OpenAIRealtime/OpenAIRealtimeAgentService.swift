@@ -1,6 +1,6 @@
 import Foundation
 
-final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService {
+final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @unchecked Sendable {
     private let model = OpenAIRealtimeModel.realtimeAgent.rawValue
 
     override var sessionMode: RealtimeRouteMode { .agent }

@@ -7,6 +7,7 @@ class OpenAIRealtimeWebSocketService: NSObject, @unchecked Sendable, URLSessionW
     private var urlSession: URLSession?
     private var isConnected = false
     private var isReady = false
+    private var isIntentionalDisconnect = false
     private var pingTask: Task<Void, Never>?
     private var receiveTask: Task<Void, Never>?
     private var reconnectAttempts = 0
@@ -43,12 +44,14 @@ class OpenAIRealtimeWebSocketService: NSObject, @unchecked Sendable, URLSessionW
         socket.resume()
         isConnected = true
         isReady = false
+        isIntentionalDisconnect = false
         reconnectAttempts = 0
         receiveTask = Task { [weak self] in await self?.receiveLoop() }
         startPingLoop()
     }
 
     func disconnect() {
+        isIntentionalDisconnect = true
         pingTask?.cancel()
         receiveTask?.cancel()
         pingTask = nil
@@ -161,6 +164,7 @@ class OpenAIRealtimeWebSocketService: NSObject, @unchecked Sendable, URLSessionW
     }
 
     func emitRecoverableError(_ message: String, action: String) {
+        guard !isIntentionalDisconnect else { return }
         onEvent?(.recoverableError(source: source, message: message, action: action))
     }
 }

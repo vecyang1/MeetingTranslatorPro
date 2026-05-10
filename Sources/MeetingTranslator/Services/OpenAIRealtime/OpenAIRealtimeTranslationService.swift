@@ -1,6 +1,6 @@
 import Foundation
 
-final class OpenAIRealtimeTranslationService: OpenAIRealtimeWebSocketService {
+final class OpenAIRealtimeTranslationService: OpenAIRealtimeWebSocketService, @unchecked Sendable {
     private let model = OpenAIRealtimeModel.realtimeTranslate.rawValue
     private var currentTurnID = "translation-\(UUID().uuidString)"
 
