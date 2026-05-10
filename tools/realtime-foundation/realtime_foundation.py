@@ -48,6 +48,7 @@ TASK_ALIASES = {
     "conversation": "agent",
     "transcribe": "agent",
     "transcription": "agent",
+    "stt": "transcription",
     "speech-to-text": "transcription",
     "whisper": "transcription",
     "whisper-transcription": "transcription",

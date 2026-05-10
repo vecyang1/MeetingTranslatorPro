@@ -190,7 +190,7 @@ Acceptance criteria:
 
 - The app can start a dedicated realtime translation session.
 - The app does not call translation when `showTranslations` is false.
-- Same-language output routes to transcription-only rather than translation.
+- Same-language output routes to the caption-only Realtime-2 path rather than translation.
 - Translation cost is visible in the title/status area.
 
 ### US-003: OpenAI Realtime as a safe default
