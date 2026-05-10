@@ -21,3 +21,7 @@
 
 - `./build_app.sh` exited 0 and installed `/Applications/MeetingTranslator.app`.
 - Synthetic OpenAI realtime transcription and translation WebSocket probes passed using a macOS `say` fixture and the explicit audio consent flag.
+
+### Fixed
+
+- Removed unsupported `server_vad` turn detection from `gpt-realtime-whisper` sessions and explicitly commit each appended realtime transcription chunk.

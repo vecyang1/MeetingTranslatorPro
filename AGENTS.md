@@ -221,6 +221,7 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 **Protocol notes verified 2026-05-10:**
 - Transcription WebSocket URL: `wss://api.openai.com/v1/realtime?intent=transcription`.
 - Put `gpt-realtime-whisper` in `session.update`, not in the transcription URL query.
+- Do not configure `server_vad` turn detection for `gpt-realtime-whisper`; commit each app audio chunk explicitly after append.
 - Translation WebSocket URL: `/v1/realtime/translations?model=gpt-realtime-translate`.
 - A realtime session is ready only after `session.updated`; do not send user audio while still merely connected.
 

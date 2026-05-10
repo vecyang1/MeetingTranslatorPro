@@ -503,6 +503,8 @@ Realtime service ownership:
 - `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation.
 - `AudioResampler`: explicit 16 kHz capture to 24 kHz PCM16 realtime boundary.
 
+`gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app appends each 1-second PCM chunk and commits it explicitly.
+
 App-level realtime events:
 
 ```swift

@@ -18,7 +18,9 @@ final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService {
     func sendAudio(_ pcm16kData: Data) -> Bool {
         let pcm24k = AudioResampler.resamplePCM16Mono(pcm16kData, fromSampleRate: 16_000, toSampleRate: 24_000)
         let duration = Double(pcm16kData.count) / (16_000.0 * 2.0)
-        return sendAudioAppend(type: "input_audio_buffer.append", pcm24kData: pcm24k, durationSeconds: duration)
+        let appended = sendAudioAppend(type: "input_audio_buffer.append", pcm24kData: pcm24k, durationSeconds: duration)
+        guard appended else { return false }
+        return sendJSON(["type": "input_audio_buffer.commit"])
     }
 
     func commitAudio() {
@@ -47,7 +49,7 @@ final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService {
         }
     }
 
-    private func sendSessionUpdate(languageHint: String?, latencyPreset: RealtimeCaptionLatencyPreset) {
+    private func sendSessionUpdate(languageHint: String?, latencyPreset _: RealtimeCaptionLatencyPreset) {
         var transcription: [String: Any] = ["model": model]
         if let languageHint, !languageHint.isEmpty {
             transcription["language"] = languageHint
@@ -62,13 +64,7 @@ final class OpenAIRealtimeTranscriptionService: OpenAIRealtimeWebSocketService {
                             "type": "audio/pcm",
                             "rate": 24000
                         ],
-                        "transcription": transcription,
-                        "turn_detection": [
-                            "type": "server_vad",
-                            "threshold": 0.5,
-                            "prefix_padding_ms": 300,
-                            "silence_duration_ms": Int(latencyPreset.targetDelaySeconds * 1000.0)
-                        ]
+                        "transcription": transcription
                     ]
                 ]
             ]
