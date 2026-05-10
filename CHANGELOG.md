@@ -14,9 +14,11 @@
 
 - Realtime translation sessions are gated at session start: translation sockets are not started when translations are hidden, translated-audio playback is off, same-language is pinned, or source language is unknown.
 - `OpenAI Realtime (Recommended)` now uses `gpt-realtime-2` as the main direct captions/dialog path, with `gpt-realtime-whisper` retained as a specialized STT fallback rather than the default user-facing route.
+- Text-first OpenAI Realtime no longer layers a separate legacy GPT translation call on top of Realtime-2 agent finals; pinned non-same-language text output is requested directly from Realtime-2.
 - Realtime-2 agent parsing now accepts nested final response events and filters short acronym-like debris so code-switched words do not split a sentence into junk rows.
 - Realtime partial deltas now accumulate by source/item before final confirmation.
 - Realtime final transport chunks now merge into readable same-source/same-language utterance rows instead of one permanent row per committed audio chunk.
+- System-audio Realtime-2 chunks now include a short silence tail so server VAD can close short ScreenCaptureKit turns.
 - Realtime audio cost is logged only after a ready session accepts an audio chunk for sending.
 - `build_app.sh` now compiles the realtime Swift service files without changing signing, entitlements, bundle ID, or install path.
 
@@ -25,6 +27,7 @@
 - `./build_app.sh` exited 0 and installed `/Applications/MeetingTranslator.app`.
 - Synthetic OpenAI realtime transcription, translation, and Realtime-2 agent WebSocket probes passed using local fixtures and the explicit audio consent flag.
 - Installed app runtime produced one meaningful Realtime-2 Chinese caption row from a synthetic `say` fixture.
+- Installed app runtime also produced a `Speaker (Chinese)` row from system audio alone with microphone capture disabled.
 
 ### Fixed
 

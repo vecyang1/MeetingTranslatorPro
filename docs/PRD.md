@@ -147,7 +147,7 @@ The OpenAI Realtime feature PRD lives at `docs/prd_feat_openai_realtime_voice_fo
 - Native Swift services under `Sources/MeetingTranslator/Services/OpenAIRealtime/`.
 - A coordinator boundary so `AppState` remains responsible for app orchestration and entry confirmation, not raw Realtime protocol parsing.
 
-Realtime translation sessions are stricter than ordinary text translation: they start only when translations are visible, the input language is explicitly pinned to a different language than the output, and translated-audio playback is enabled. Auto-detect and text-only translation start as realtime transcription first; final non-same text can still use the existing GPT text translation path after language detection.
+Realtime translation sessions are stricter than ordinary text translation: they start only when translations are visible, the input language is explicitly pinned to a different language than the output, and translated-audio playback is enabled. Text-first OpenAI Realtime stays on `gpt-realtime-2`; when the source language is pinned and differs from the target, Realtime-2 outputs the target text directly instead of AppState adding a second GPT translation call. Auto-detect remains caption-first until there is a reliable language gate.
 
 ---
 

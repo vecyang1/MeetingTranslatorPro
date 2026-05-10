@@ -509,7 +509,7 @@ Realtime service ownership:
 
 `gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app sets manual turn detection (`null`), appends latency-preset PCM chunks, and commits each chunk explicitly. Realtime capture uses continuous timer chunking, not the legacy VAD-first behavior, so active speech continues flowing before silence.
 
-`gpt-realtime-2` sessions are the main user-facing OpenAI Realtime path. They use low reasoning effort for latency, text output only for captions, `server_vad` with a slightly less eager 700 ms silence window, and never enable tool/action behavior without a separate approval-gated assistant mode. Agent service parsing accepts both direct text events (`response.output_text.*`) and nested final response containers (`response.output_item.done`, `response.done`); nested finals are reconciled by inner message IDs (`item.id` / `response.output[].id`) so partial rows finalize in place.
+`gpt-realtime-2` sessions are the main user-facing OpenAI Realtime path. They use low reasoning effort for latency, text output only for captions, `server_vad` with a slightly less eager 700 ms silence window, and never enable tool/action behavior without a separate approval-gated assistant mode. Agent service parsing accepts both direct text events (`response.output_text.*`) and nested final response containers (`response.output_item.done`, `response.done`); nested finals are reconciled by inner message IDs (`item.id` / `response.output[].id`) so partial rows finalize in place. System-audio chunks append a short silence tail before sending to Realtime-2 so server VAD closes short ScreenCaptureKit turns; microphone chunks are sent without that tail.
 
 App-level realtime events:
 
@@ -534,7 +534,7 @@ let mayUseRealtimeTranslate = showTranslations
     && realtimeTranslatedAudioPlayback
 ```
 
-If input language is auto-detected or translated-audio playback is off, realtime starts as transcription-only. Final non-same captions may still use the existing GPT text translation path, which preserves the `!sameLanguage && showTranslations` spend gate. This avoids silently generating translated audio while the text-only UI is active.
+If input language is auto-detected or translated-audio playback is off, realtime stays on the `gpt-realtime-2` path rather than starting a translation session. When the input language is explicitly pinned and differs from the target, Realtime-2 may output the target-language text directly; AppState must not add a separate legacy GPT text-translation call on top of the agent caption path. Auto-detect remains caption-first until the user or routing layer provides a reliable language gate.
 
 Realtime cost additions in `CostTracker`:
 

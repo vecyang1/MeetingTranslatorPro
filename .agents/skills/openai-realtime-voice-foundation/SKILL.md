@@ -23,10 +23,12 @@ For Meeting Translator Pro, the user-facing `OpenAI Realtime (Recommended)` path
 - Do not alter bundle ID, signing identity, entitlements, permission behavior, or `build_app.sh` install path.
 - Never start or maintain a translation session unless `!sameLanguage && showTranslations` and translated-audio/live-interpreter mode is enabled.
 - Translation-off, same-language, and auto-detect-with-unknown-source modes should stay on `gpt-realtime-2` captions/dialog, not a translation session.
+- For text-only OpenAI Realtime with a pinned non-same input language, let `gpt-realtime-2` produce the target text directly; do not layer a second legacy GPT text-translation call on agent finals.
 - Preserve separate microphone and system-audio source labels.
 - Partial transcript rows update in place by `(source, itemID)`; final rows still pass empty, hallucination, overlap, echo dedup, language, and translation gates.
 - Provider final items may be transport chunks, not user dialog turns. Merge nearby same-source/same-language final chunks into readable utterance rows before display/export.
 - Realtime-2 text may arrive as `response.output_text.*`, `response.output_item.done`, or `response.done`; future agents must parse nested final response containers before declaring "no caption output." For nested finals, reconcile by inner `item.id` / `response.output[].id` so existing partial rows finalize in place.
+- ScreenCaptureKit system audio may stop delivering buffers immediately after short sounds; append a small silence tail on the system-audio Realtime-2 path so server VAD can close the turn. Do not add that tail to microphone audio.
 - Keep existing OpenAI Whisper+GPT, Gemini Flash, and Gemini Live engines selectable as fallbacks.
 - Do not log raw audio or full private transcripts in debug output.
 

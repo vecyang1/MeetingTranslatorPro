@@ -2,6 +2,7 @@ import Foundation
 
 final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @unchecked Sendable {
     private let model = OpenAIRealtimeModel.realtimeAgent.rawValue
+    private let systemAudioSilenceTailSeconds = 0.85
 
     override var sessionMode: RealtimeRouteMode { .agent }
 
@@ -24,8 +25,13 @@ final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @uncheck
 
     @discardableResult
     func sendAudio(_ pcm16kData: Data) -> Bool {
-        let pcm24k = AudioResampler.resamplePCM16Mono(pcm16kData, fromSampleRate: 16_000, toSampleRate: 24_000)
-        let duration = Double(pcm16kData.count) / (16_000.0 * 2.0)
+        var pcm24k = AudioResampler.resamplePCM16Mono(pcm16kData, fromSampleRate: 16_000, toSampleRate: 24_000)
+        var duration = Double(pcm16kData.count) / (16_000.0 * 2.0)
+        if source == .system {
+            let silenceBytes = Int(24_000.0 * 2.0 * systemAudioSilenceTailSeconds)
+            pcm24k.append(Data(repeating: 0, count: silenceBytes))
+            duration += systemAudioSilenceTailSeconds
+        }
         return sendAudioAppend(type: "input_audio_buffer.append", pcm24kData: pcm24k, durationSeconds: duration)
     }
 
@@ -74,7 +80,7 @@ final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @uncheck
 
     override func processServerEvent(_ event: [String: Any]) {
         guard let type = event["type"] as? String else { return }
-        let itemID = event["item_id"] as? String ?? event["response_id"] as? String ?? "agent-\(UUID().uuidString)"
+        let itemID = Self.eventItemID(from: event, type: type)
         switch type {
         case "session.updated":
             markSessionReady()
@@ -123,6 +129,33 @@ final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @uncheck
             }
         }
         return []
+    }
+
+    static func eventItemID(from event: [String: Any], type: String) -> String {
+        if type == "response.output_item.done",
+           let item = event["item"] as? [String: Any],
+           let itemID = item["id"] as? String {
+            return itemID
+        }
+        if type == "response.done",
+           let response = event["response"] as? [String: Any],
+           let output = response["output"] as? [[String: Any]],
+           let itemID = output.first?["id"] as? String {
+            return itemID
+        }
+        if let itemID = event["item_id"] as? String {
+            return itemID
+        }
+        if let item = event["item"] as? [String: Any],
+           let itemID = item["id"] as? String {
+            return itemID
+        }
+        if let response = event["response"] as? [String: Any],
+           let output = response["output"] as? [[String: Any]],
+           let itemID = output.first?["id"] as? String {
+            return itemID
+        }
+        return event["response_id"] as? String ?? "agent-\(UUID().uuidString)"
     }
 
     private static func extractText(fromItem item: [String: Any]) -> String? {

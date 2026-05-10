@@ -23,6 +23,7 @@ final class OpenAIRealtimeCoordinator {
         sources: [TranscriptionEntry.AudioSource],
         showTranslations: Bool,
         sameLanguage: Bool,
+        wantsTranslatedAudio: Bool,
         targetLanguageCode: String,
         languageHint: String?,
         latencyPreset: RealtimeCaptionLatencyPreset,
@@ -34,7 +35,7 @@ final class OpenAIRealtimeCoordinator {
         let decision = router.route(
             showTranslations: showTranslations,
             sameLanguage: sameLanguage,
-            wantsTranslatedAudio: showTranslations,
+            wantsTranslatedAudio: wantsTranslatedAudio,
             wantsAgent: false
         )
         activeMode = decision.mode

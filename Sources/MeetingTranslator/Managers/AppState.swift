@@ -548,11 +548,13 @@ final class AppState: ObservableObject {
         statusMessage = "Connecting OpenAI Realtime..."
 
         do {
+            let useRealtimeTranslationSession = shouldUseRealtimeTranslationSession(sameLanguage: sameLanguage)
             let decision = try await realtimeCoordinator.start(
                 apiKey: apiKey,
                 sources: sources,
-                showTranslations: shouldUseRealtimeTranslationSession(sameLanguage: sameLanguage),
+                showTranslations: showTranslations,
                 sameLanguage: sameLanguage,
+                wantsTranslatedAudio: useRealtimeTranslationSession,
                 targetLanguageCode: targetLanguage.isoCode,
                 languageHint: inputLanguages.count == 1 ? inputLanguages.first?.isoCode : nil,
                 latencyPreset: realtimeCaptionLatency,
@@ -776,7 +778,8 @@ final class AppState: ObservableObject {
 
         let sameLanguage = isSameLanguage(detected: detected, target: targetLanguage)
         var translatedSegment = sameLanguage || !showTranslations ? nil : reduced.translatedText
-        if translatedSegment == nil && showTranslations && !sameLanguage && realtimeMode != .translation {
+        if translatedSegment == nil,
+           shouldUseRealtimeTextTranslationFallback(sameLanguage: sameLanguage, realtimeMode: realtimeMode) {
             do {
                 statusMessage = "Translating..."
                 translatedSegment = try await translationService.translate(text: text, to: targetLanguage.rawValue)
@@ -834,20 +837,25 @@ final class AppState: ObservableObject {
         text: String,
         detected: String?
     ) -> TranscriptionEntry? {
-        guard let idx = entries.indices.reversed().first(where: { idx in
-            let entry = entries[idx]
-            guard entry.realtimeItemID != reduced.itemID else { return false }
-            return RealtimeUtteranceMerger.canMerge(
-                previous: entry,
-                nextText: text,
-                nextLanguage: detected,
-                nextSource: reduced.source,
-                nextTimestamp: reduced.timestamp,
-                maxDuration: realtimeUtteranceMaxDurationSeconds,
-                maxCharacters: realtimeUtteranceMaxCharacters
-            )
-        }) else { return nil }
-        return entries[idx]
+        let candidateIndex: Int?
+        if let currentIndex = entries.lastIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+            candidateIndex = entries[..<currentIndex].indices.last
+        } else {
+            candidateIndex = entries.indices.last(where: { entries[$0].timestamp <= reduced.timestamp })
+        }
+        guard let candidateIndex else { return nil }
+        let previous = entries[candidateIndex]
+        guard previous.realtimeItemID != reduced.itemID else { return nil }
+        guard RealtimeUtteranceMerger.canMerge(
+            previous: previous,
+            nextText: text,
+            nextLanguage: detected,
+            nextSource: reduced.source,
+            nextTimestamp: reduced.timestamp,
+            maxDuration: realtimeUtteranceMaxDurationSeconds,
+            maxCharacters: realtimeUtteranceMaxCharacters
+        ) else { return nil }
+        return previous
     }
 
     private func mergeTranslations(previous: String?, next: String?) -> String? {
@@ -878,6 +886,13 @@ final class AppState: ObservableObject {
 
     private func shouldUseRealtimeTranslationSession(sameLanguage: Bool) -> Bool {
         showTranslations && !sameLanguage && inputLanguages.count == 1 && realtimeTranslatedAudioPlayback
+    }
+
+    private func shouldUseRealtimeTextTranslationFallback(
+        sameLanguage: Bool,
+        realtimeMode: RealtimeRouteMode?
+    ) -> Bool {
+        showTranslations && !sameLanguage && realtimeMode == .transcription
     }
 
     private func activateLegacyOpenAIFallback() {

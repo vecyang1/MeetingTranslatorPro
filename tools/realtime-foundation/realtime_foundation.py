@@ -116,34 +116,46 @@ def print_model_table() -> None:
         print(f"  pricing: {info['pricing']}")
 
 
-def choose_mode(task: str, client: str, show_translations: bool, same_language: bool) -> str:
+def choose_mode(
+    task: str,
+    client: str,
+    show_translations: bool,
+    same_language: bool,
+    translated_audio: bool,
+) -> str:
     normalized_task = task.strip().lower()
     normalized_client = client.strip().lower()
     if normalized_task in TASK_ALIASES:
         mode = TASK_ALIASES[normalized_task]
-        if mode == "translation" and (not show_translations or same_language):
+        if mode == "translation" and (not show_translations or same_language or not translated_audio):
             return "agent"
         return mode
     if not show_translations or same_language:
         return "agent"
-    if "browser" in normalized_client and "translate" in normalized_task:
+    if "browser" in normalized_client and "translate" in normalized_task and translated_audio:
         return "translation"
     if "tool" in normalized_task or "action" in normalized_task or "assistant" in normalized_task:
         return "agent"
-    return "transcription"
+    return "agent"
 
 
 def command_recommend(args: argparse.Namespace) -> int:
-    mode = choose_mode(args.task, args.client, args.show_translations, args.same_language)
+    mode = choose_mode(
+        args.task,
+        args.client,
+        args.show_translations,
+        args.same_language,
+        args.translated_audio,
+    )
     info = MODEL_ROUTES[mode]
     print(f"mode: {mode}")
     print(f"model: {info['model']}")
     print(f"endpoint: {info['endpoint']}")
     print(f"transport: {info['transport']}")
     if mode == "translation":
-        print("gate: start this session only when !sameLanguage && showTranslations")
+        print("gate: start this session only when !sameLanguage && showTranslations && translated audio is requested")
     elif mode == "agent":
-        print("gate: default captions path; keep actions approval-gated and translate only after language gate")
+        print("gate: default captions path; direct target-language output only after an explicit language gate")
     else:
         print("gate: specialized raw STT fallback when exact transcript deltas are required")
     return 0
@@ -477,6 +489,12 @@ def build_parser() -> argparse.ArgumentParser:
     recommend.add_argument("--client", default="native-macos")
     recommend.add_argument("--show-translations", action=argparse.BooleanOptionalAction, default=True)
     recommend.add_argument("--same-language", action=argparse.BooleanOptionalAction, default=False)
+    recommend.add_argument(
+        "--translated-audio",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="Use the dedicated realtime translation session only for explicit translated-audio/live-interpreter mode.",
+    )
     recommend.set_defaults(func=command_recommend)
 
     probe = sub.add_parser("probe", help="Probe model access or an explicit WAV audio file")

@@ -216,7 +216,7 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 **Cost/privacy gate:**
 - Never start or maintain `gpt-realtime-translate` unless translation UI is visible, translated-audio playback is enabled, and the app knows the source language is different from the target.
 - Translation-off and same-language modes must stay on the `gpt-realtime-2` realtime captions/dialog path, not a translation session.
-- Auto-detect input and text-only translation are treated as Realtime-2 caption-first; translate final non-same text only after detection.
+- Auto-detect input stays Realtime-2 caption-first. For text-only OpenAI Realtime with a pinned non-same input language, have Realtime-2 produce the target text directly; do not layer a second legacy GPT translation call on agent finals.
 - Log realtime audio duration cost only after an audio chunk is accepted for sending by a ready session.
 
 **Protocol notes verified 2026-05-10:**

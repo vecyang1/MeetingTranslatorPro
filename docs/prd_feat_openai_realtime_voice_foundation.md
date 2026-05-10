@@ -2,7 +2,7 @@
 
 **Version:** 0.2 implementation checkpoint
 **Date:** 2026-05-10
-**Status:** M0-M4 implemented with Realtime-2 main-path proof; system-audio-only local capture still needs one follow-up
+**Status:** M0-M4 implemented with Realtime-2 main-path, microphone, and system-audio runtime proof
 **Primary app:** Meeting Translator Pro
 **Input brief:** `../../input/2026-5-10 9-39-34-Realtime_Voice_Skill_Build.md`
 **Parent docs:** `docs/PRD.md`, `docs/API.md`, `AGENTS.md`
@@ -23,10 +23,10 @@ Completed:
 Safety notes:
 
 - Realtime translation sessions start only when translations are visible, the input language is explicitly pinned to a different target language, and translated-audio playback is enabled.
-- Auto-detect and text-only translation start with `gpt-realtime-2` captions/dialog and may translate final non-same text through the existing gated GPT text translation path after detection.
+- Auto-detect and text-only translation stay on `gpt-realtime-2` captions/dialog; pinned non-same-language text output is handled directly by Realtime-2, not by an extra legacy GPT text-translation call in AppState.
 - Audio probes require an explicit CLI consent flag and should use synthetic or non-private fixtures.
-- Runtime UI proof on `/Applications/MeetingTranslator.app`: a synthetic Chinese `say` fixture produced one meaningful Realtime-2 caption row instead of per-second chopped entries.
-- System-audio-only local UI proof is still a follow-up: with microphone off, both `say` and `afplay` synthetic fixtures left the Realtime-2 session active but did not create a new row on this Mac. The direct CLI Realtime-2 agent audio probe passed on the same WAV, so the remaining issue is likely local system-audio capture/runtime plumbing rather than model access.
+- Runtime UI proof on `/Applications/MeetingTranslator.app`: synthetic Chinese `say` fixtures produced meaningful Realtime-2 caption rows instead of per-second chopped entries.
+- System-audio-only local UI proof passed after nested final event parsing and the system-audio silence tail were fixed: with microphone off and system audio on, a synthetic `say` fixture produced a `Speaker (Chinese)` row on 2026-05-10.
 - User screenshot feedback showed that VAD-first chunking made realtime captions appear late, draft cleanup could erase visible live text, and per-commit final items could create chopped one-second rows. This is now guarded by `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration`, `RealtimeDraftFinalizer`, and `RealtimeUtteranceMerger`.
 - GitNexus refresh/impact/detect-changes currently reports a corrupted local WAL on this machine; direct Swift symbol search, smoke tests, Swift build, signed package build, model probes, and Computer Use runtime checks were used for this hotfix.
 
@@ -145,7 +145,7 @@ The implementation must test against real meeting-style audio, accents, code-swi
 
 ### G3. Keep translation intuitive and cost-aware
 
-When translation is enabled and target language differs from the detected/spoken language, the app should route to realtime translation. When translation is disabled or same-language output is requested, it should not spend on translation.
+When translation is enabled and target language differs from the detected/spoken language, text-first OpenAI Realtime should stay on Realtime-2 unless translated-audio/live-interpreter mode is explicitly requested. When translation is disabled or same-language output is requested, it should not spend on translation.
 
 ### G4. Build a reusable foundation for future agents
 
@@ -227,7 +227,8 @@ Create a single routing decision layer with this default behavior:
 |---|---|
 | `showTranslations == false` | `gpt-realtime-2` realtime captions/dialog session. |
 | Target language equals detected/specified input language | `gpt-realtime-2` realtime captions/dialog session. |
-| Auto-detect source language not yet known | `gpt-realtime-2` realtime captions/dialog session; defer text translation until detection. |
+| Auto-detect source language not yet known | `gpt-realtime-2` realtime captions/dialog session; do not start a translation session or fallback GPT translation call. |
+| Translation on, input language pinned different from target, text output only | `gpt-realtime-2` realtime captions/dialog session with target-language text instructions. |
 | Translation on, live translated speech wanted | `gpt-realtime-translate` translation session. |
 | User asks the app to reason, call tools, summarize, or act | `gpt-realtime-2` voice-agent session. |
 | Realtime session fails or quota unavailable | Existing OpenAI/Gemini fallback engine selected by user or automatic fallback setting. |
@@ -365,7 +366,7 @@ Add a small CLI for future agents:
 
 ```bash
 realtime-foundation models
-realtime-foundation recommend --task live-translation --client native-macos
+realtime-foundation recommend --task live-translation --client native-macos --translated-audio
 realtime-foundation probe --mode transcription --audio sample.wav
 realtime-foundation probe --mode translation --audio sample.wav --target ja
 realtime-foundation scaffold --target swift-service

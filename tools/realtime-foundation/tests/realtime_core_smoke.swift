@@ -174,6 +174,12 @@ struct RealtimeCoreSmoke {
             from: outputItemDone,
             fallbackItemID: "response_ignored"
         )
+        precondition(
+            OpenAIRealtimeAgentService.eventItemID(
+                from: outputItemDone,
+                type: "response.output_item.done"
+            ) == "msg_007"
+        )
         precondition(outputItemSegments.count == 1)
         precondition(outputItemSegments[0].itemID == "msg_007")
         precondition(outputItemSegments[0].text == "Realtime nested final")
@@ -201,6 +207,12 @@ struct RealtimeCoreSmoke {
         let responseDoneSegments = OpenAIRealtimeAgentService.finalTranscriptSegments(
             from: responseDone,
             fallbackItemID: "response_ignored"
+        )
+        precondition(
+            OpenAIRealtimeAgentService.eventItemID(
+                from: responseDone,
+                type: "response.done"
+            ) == "msg_008"
         )
         precondition(responseDoneSegments.map(\.itemID) == ["msg_008", "msg_009"])
         precondition(responseDoneSegments.map(\.text) == ["First final item", "Second final item"])
