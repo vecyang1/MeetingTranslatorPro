@@ -160,6 +160,203 @@ struct RealtimeCoreSmoke {
             maxDuration: 8,
             maxCharacters: 240
         ))
+        precondition(
+            RealtimeUtteranceMerger.mergedTextSequence([
+                "系统音频验证开始",
+                "验证开始这里只有第",
+                "这里只有第电脑声音",
+                "电脑声音没有麦克",
+                "没有麦克完整稳定的字幕"
+            ]) == "系统音频验证开始这里只有第电脑声音没有麦克完整稳定的字幕"
+        )
+        precondition(
+            RealtimeUtteranceMerger.hasNoNewContent(
+                previous: "You have a meeting soon. Scan their site",
+                next: "Scan their site"
+            )
+        )
+        precondition(!RealtimeUtteranceMerger.hasNoNewContent(previous: "website", next: "site"))
+        let tailDuplicatePrevious = TranscriptionEntry(
+            timestamp: Date(timeIntervalSince1970: 0),
+            originalText: "You have a meeting soon. Scan their site",
+            detectedLanguage: "en",
+            source: .system,
+            realtimeItemID: "rt_tail_1"
+        )
+        precondition(RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: tailDuplicatePrevious,
+            nextText: "Scan their site",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 1.0),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        precondition(RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "one readable caption without repeating the final words though",
+                detectedLanguage: "en",
+                source: .system,
+                realtimeItemID: "rt_tail_slow"
+            ),
+            nextText: "though",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 8.0),
+            maxDuration: 12,
+            maxCharacters: 480
+        ))
+        precondition(!RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: tailDuplicatePrevious,
+            nextText: "Scan their site",
+            nextLanguage: "zh",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 1.0),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        precondition(!RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "website",
+                detectedLanguage: "en",
+                source: .system,
+                realtimeItemID: "rt_tail_subword"
+            ),
+            nextText: "site",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 1.0),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        precondition(!RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: tailDuplicatePrevious,
+            nextText: "Scan their site",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 12.0),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        precondition(!RealtimeUtteranceMerger.canDropNoNewContent(
+            previous: TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "same phrase",
+                detectedLanguage: "en",
+                source: .system,
+                realtimeItemID: "rt_repeat_1"
+            ),
+            nextText: "same phrase",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 1.0),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        var adjacentSystemEntries = [
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "系统音频验证开始",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_1"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 1),
+                originalText: "验证开始这里只有第",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_2"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 2),
+                originalText: "这里只有第电脑声音",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_3"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 3),
+                originalText: "电脑声音没有麦克",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_4"
+            )
+        ]
+        let agentLatest = RealtimeUtteranceMerger.consolidateFinalEntries(
+            entries: &adjacentSystemEntries,
+            source: .system,
+            mode: .agent,
+            baseMaxDuration: 8,
+            baseMaxCharacters: 240
+        )
+        precondition(agentLatest == "系统音频验证开始这里只有第电脑声音没有麦克")
+        precondition(adjacentSystemEntries.count == 1)
+        precondition(adjacentSystemEntries[0].originalText == "系统音频验证开始这里只有第电脑声音没有麦克")
+
+        var interleavedEntries = [
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "系统音频验证开始",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_interleaved_1"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0.5),
+                originalText: "interleaved mic row",
+                detectedLanguage: "en",
+                source: .microphone,
+                realtimeItemID: "rt_mic_interleaved"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 1),
+                originalText: "验证开始这里只有第",
+                detectedLanguage: "zh",
+                source: .system,
+                realtimeItemID: "rt_sys_interleaved_2"
+            )
+        ]
+        let interleavedLatest = RealtimeUtteranceMerger.consolidateFinalEntries(
+            entries: &interleavedEntries,
+            source: .system,
+            mode: .agent,
+            baseMaxDuration: 8,
+            baseMaxCharacters: 240
+        )
+        precondition(interleavedLatest == "验证开始这里只有第")
+        precondition(interleavedEntries.count == 3)
+        precondition(interleavedEntries[0].originalText == "系统音频验证开始")
+        precondition(interleavedEntries[1].source == .microphone)
+        precondition(interleavedEntries[2].originalText == "验证开始这里只有第")
+
+        var translationEntries = [
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 0),
+                originalText: "hello world",
+                detectedLanguage: "en",
+                source: .system,
+                realtimeItemID: "rt_trans_1"
+            ),
+            TranscriptionEntry(
+                timestamp: Date(timeIntervalSince1970: 1),
+                originalText: "world again",
+                detectedLanguage: "en",
+                source: .system,
+                realtimeItemID: "rt_trans_2"
+            )
+        ]
+        let beforeTranslationConsolidation = translationEntries
+        precondition(RealtimeUtteranceMerger.consolidateFinalEntries(
+            entries: &translationEntries,
+            source: .system,
+            mode: .translation,
+            baseMaxDuration: 8,
+            baseMaxCharacters: 240
+        ) == nil)
+        precondition(translationEntries == beforeTranslationConsolidation)
 
         let outputItemDone: [String: Any] = [
             "type": "response.output_item.done",

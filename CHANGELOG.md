@@ -18,6 +18,7 @@
 - Realtime-2 agent parsing now accepts nested final response events and filters short acronym-like debris so code-switched words do not split a sentence into junk rows.
 - Realtime partial deltas now accumulate by source/item before final confirmation.
 - Realtime final transport chunks now merge into readable same-source/same-language utterance rows instead of one permanent row per committed audio chunk.
+- Realtime final confirmation now performs a same-source consolidation pass outside translation mode to repair chopped system-audio rows that finalize without partial text, with strict gates for tail-only duplicate finals.
 - System-audio Realtime-2 chunks now include a short silence tail so server VAD can close short ScreenCaptureKit turns.
 - Realtime audio cost is logged only after a ready session accepts an audio chunk for sending.
 - `build_app.sh` now compiles the realtime Swift service files without changing signing, entitlements, bundle ID, or install path.

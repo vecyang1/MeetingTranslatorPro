@@ -824,7 +824,10 @@ final class AppState: ObservableObject {
             insertEntryChronologically(entry)
         }
 
-        lastConfirmedText = finalText
+        let consolidatedText = realtimeMode == .translation
+            ? finalText
+            : (consolidateRecentRealtimeUtterances(source: reduced.source, mode: realtimeMode) ?? finalText)
+        lastConfirmedText = consolidatedText
         lastConfirmedTranslation = translated
         lastConfirmedLanguage = detected
         markProcessingSuccess()
@@ -856,6 +859,19 @@ final class AppState: ObservableObject {
             maxCharacters: realtimeUtteranceMaxCharacters
         ) else { return nil }
         return previous
+    }
+
+    private func consolidateRecentRealtimeUtterances(
+        source: TranscriptionEntry.AudioSource,
+        mode: RealtimeRouteMode?
+    ) -> String? {
+        RealtimeUtteranceMerger.consolidateFinalEntries(
+            entries: &entries,
+            source: source,
+            mode: mode,
+            baseMaxDuration: realtimeUtteranceMaxDurationSeconds,
+            baseMaxCharacters: realtimeUtteranceMaxCharacters
+        )
     }
 
     private func mergeTranslations(previous: String?, next: String?) -> String? {

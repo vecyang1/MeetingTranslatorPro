@@ -46,6 +46,156 @@ enum RealtimeUtteranceMerger {
         return lhs + remainder
     }
 
+    static func hasNoNewContent(previous: String, next: String) -> Bool {
+        let lhs = previous.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = next.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lhs.isEmpty, rhs.count >= 4 else { return false }
+        if lhs.caseInsensitiveCompare(rhs) == .orderedSame { return true }
+        guard lhs.lowercased().hasSuffix(rhs.lowercased()) else { return false }
+        return hasSafeTailDuplicateBoundary(previous: lhs, suffix: rhs)
+    }
+
+    static func canDropNoNewContent(
+        previous: TranscriptionEntry,
+        nextText: String,
+        nextLanguage: String?,
+        nextSource: TranscriptionEntry.AudioSource,
+        nextTimestamp: Date,
+        maxDuration: TimeInterval,
+        maxCharacters: Int
+    ) -> Bool {
+        guard previous.realtimeItemID != nil, !previous.isDraft else { return false }
+        guard previous.source == nextSource else { return false }
+
+        let lhs = previous.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let rhs = nextText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !lhs.isEmpty, !rhs.isEmpty, lhs.caseInsensitiveCompare(rhs) != .orderedSame else {
+            return false
+        }
+
+        let elapsed = nextTimestamp.timeIntervalSince(previous.timestamp)
+        guard elapsed >= 0, elapsed <= maxDuration else { return false }
+        guard previous.originalText.count + rhs.count <= maxCharacters else { return false }
+
+        let previousLanguage = previous.detectedLanguage?.lowercased()
+        let incomingLanguage = nextLanguage?.lowercased()
+        if let previousLanguage, let incomingLanguage, previousLanguage != incomingLanguage {
+            return false
+        }
+
+        return hasNoNewContent(previous: lhs, next: rhs)
+    }
+
+    static func consolidateFinalEntries(
+        entries: inout [TranscriptionEntry],
+        source: TranscriptionEntry.AudioSource,
+        mode: RealtimeRouteMode?,
+        baseMaxDuration: TimeInterval,
+        baseMaxCharacters: Int
+    ) -> String? {
+        guard mode != .translation else { return nil }
+
+        let maxMergeDuration = source == .system ? baseMaxDuration * 1.5 : baseMaxDuration
+        let maxMergeCharacters = source == .system ? baseMaxCharacters * 2 : baseMaxCharacters
+        var index = 1
+        var latestText: String?
+
+        while index < entries.count {
+            let current = entries[index]
+            guard current.source == source,
+                  current.realtimeItemID != nil,
+                  !current.isDraft else {
+                index += 1
+                continue
+            }
+
+            latestText = current.originalText
+            let previousIndex = entries.index(before: index)
+            let previous = entries[previousIndex]
+            guard previous.source == source,
+                  previous.realtimeItemID != nil,
+                  !previous.isDraft else {
+                index += 1
+                continue
+            }
+
+            if canDropNoNewContent(
+                previous: previous,
+                nextText: current.originalText,
+                nextLanguage: current.detectedLanguage,
+                nextSource: source,
+                nextTimestamp: current.timestamp,
+                maxDuration: maxMergeDuration,
+                maxCharacters: maxMergeCharacters
+            ) {
+                entries.remove(at: index)
+                latestText = previous.originalText
+                continue
+            }
+
+            guard canMerge(
+                previous: previous,
+                nextText: current.originalText,
+                nextLanguage: current.detectedLanguage,
+                nextSource: source,
+                nextTimestamp: current.timestamp,
+                maxDuration: maxMergeDuration,
+                maxCharacters: maxMergeCharacters
+            ), let merged = mergedTextSequence([previous.originalText, current.originalText]) else {
+                index += 1
+                continue
+            }
+
+            entries[previousIndex].originalText = merged
+            entries[previousIndex].translatedText = mergedOptionalText(
+                previous: previous.translatedText,
+                next: current.translatedText
+            )
+            entries[previousIndex].detectedLanguage = previous.detectedLanguage ?? current.detectedLanguage
+            entries[previousIndex].speakerLabel = previous.speakerLabel?.isEmpty == false
+                ? previous.speakerLabel
+                : current.speakerLabel
+            entries[previousIndex].isTranslating = previous.isTranslating || current.isTranslating
+            entries.remove(at: index)
+            latestText = merged
+        }
+
+        return latestText
+    }
+
+    static func mergedTextSequence(_ texts: [String]) -> String? {
+        let chunks = texts
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard var merged = chunks.first else { return nil }
+        for chunk in chunks.dropFirst() {
+            guard let next = mergedText(previous: merged, next: chunk) else {
+                continue
+            }
+            merged = next
+        }
+        return merged
+    }
+
+    private static func mergedOptionalText(previous: String?, next: String?) -> String? {
+        guard let next, !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return previous
+        }
+        guard let previous, !previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return next
+        }
+        return mergedTextSequence([previous, next]) ?? "\(previous)\n\(next)"
+    }
+
+    private static func hasSafeTailDuplicateBoundary(previous: String, suffix: String) -> Bool {
+        let left = Array(previous.lowercased())
+        let right = Array(suffix.lowercased())
+        guard !right.isEmpty, right.count <= left.count else { return false }
+        if right.allSatisfy(isCJK) { return true }
+        let start = left.count - right.count
+        return start == 0 || isBoundary(left[start - 1])
+    }
+
     private static func longestSuffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
         let left = Array(lhs.lowercased())
         let right = Array(rhs.lowercased())

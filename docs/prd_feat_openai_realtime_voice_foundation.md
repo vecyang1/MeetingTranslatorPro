@@ -25,9 +25,10 @@ Safety notes:
 - Realtime translation sessions start only when translations are visible, the input language is explicitly pinned to a different target language, and translated-audio playback is enabled.
 - Auto-detect and text-only translation stay on `gpt-realtime-2` captions/dialog; pinned non-same-language text output is handled directly by Realtime-2, not by an extra legacy GPT text-translation call in AppState.
 - Audio probes require an explicit CLI consent flag and should use synthetic or non-private fixtures.
-- Runtime UI proof on `/Applications/MeetingTranslator.app`: synthetic Chinese `say` fixtures produced meaningful Realtime-2 caption rows instead of per-second chopped entries.
+- Runtime UI proof on `/Applications/MeetingTranslator.app`: synthetic Chinese `say` fixtures produced meaningful Realtime-2 caption rows on microphone capture.
 - System-audio-only local UI proof passed after nested final event parsing and the system-audio silence tail were fixed: with microphone off and system audio on, a synthetic `say` fixture produced a `Speaker (Chinese)` row on 2026-05-10.
 - User screenshot feedback showed that VAD-first chunking made realtime captions appear late, draft cleanup could erase visible live text, and per-commit final items could create chopped one-second rows. This is now guarded by `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration`, `RealtimeDraftFinalizer`, and `RealtimeUtteranceMerger`.
+- After the same-source final consolidation patch, the exact chopped system-audio pattern observed in local runtime is covered by `tools/realtime-foundation/tests/realtime_core_smoke.swift`. A fresh `/Applications/MeetingTranslator.app` run produced one `Speaker (English)` row from a synthetic system-audio `say` fixture and still showed `1 entries` after 39 seconds, with no tail-only duplicate row.
 - GitNexus refresh/impact/detect-changes currently reports a corrupted local WAL on this machine; direct Swift symbol search, smoke tests, Swift build, signed package build, model probes, and Computer Use runtime checks were used for this hotfix.
 
 Known follow-up:
