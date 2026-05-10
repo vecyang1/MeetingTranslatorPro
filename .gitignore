@@ -18,6 +18,10 @@ xcuserdata/
 Packages/
 Package.resolved
 
+# Python helper caches
+__pycache__/
+*.pyc
+
 # macOS
 .DS_Store
 *.dSYM

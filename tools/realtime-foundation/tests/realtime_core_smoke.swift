@@ -10,8 +10,8 @@ struct RealtimeCoreSmoke {
             wantsTranslatedAudio: false,
             wantsAgent: false
         )
-        precondition(transcription.mode == .transcription)
-        precondition(transcription.model == OpenAIRealtimeModel.realtimeWhisper.rawValue)
+        precondition(transcription.mode == .agent)
+        precondition(transcription.model == OpenAIRealtimeModel.realtimeAgent.rawValue)
 
         let hiddenTranslation = router.route(
             showTranslations: false,
@@ -19,7 +19,7 @@ struct RealtimeCoreSmoke {
             wantsTranslatedAudio: true,
             wantsAgent: false
         )
-        precondition(hiddenTranslation.mode == .transcription)
+        precondition(hiddenTranslation.mode == .agent)
 
         let translation = router.route(
             showTranslations: true,
@@ -103,6 +103,107 @@ struct RealtimeCoreSmoke {
         precondition(entries.contains { $0.realtimeItemID == nil && !$0.isDraft && $0.originalText == "legacy draft text" })
         precondition(!entries.contains { $0.realtimeItemID == "item_empty" })
         precondition(draftIDs.isEmpty)
+
+        let firstRealtimeSegment = TranscriptionEntry(
+            timestamp: Date(timeIntervalSince1970: 0),
+            originalText: "你好,听得到我",
+            detectedLanguage: "zh",
+            source: .microphone,
+            speakerLabel: "You",
+            realtimeItemID: "rt_1"
+        )
+        precondition(RealtimeUtteranceMerger.canMerge(
+            previous: firstRealtimeSegment,
+            nextText: "我说话吗?",
+            nextLanguage: "zh",
+            nextSource: .microphone,
+            nextTimestamp: Date(timeIntervalSince1970: 1.2),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+        precondition(
+            RealtimeUtteranceMerger.mergedText(
+                previous: firstRealtimeSegment.originalText,
+                next: "我说话吗?"
+            ) == "你好,听得到我说话吗?"
+        )
+        precondition(
+            RealtimeUtteranceMerger.mergedText(
+                previous: "hello real",
+                next: "real time captions"
+            ) == "hello real time captions"
+        )
+        precondition(
+            RealtimeUtteranceMerger.mergedText(
+                previous: "I am",
+                next: "meeting now"
+            ) == "I am meeting now"
+        )
+        precondition(
+            RealtimeUtteranceMerger.mergedText(
+                previous: "what",
+                next: "whatever happened"
+            ) == "what whatever happened"
+        )
+        precondition(
+            RealtimeUtteranceMerger.mergedText(
+                previous: "same phrase",
+                next: "same phrase"
+            ) == nil
+        )
+        precondition(!RealtimeUtteranceMerger.canMerge(
+            previous: firstRealtimeSegment,
+            nextText: "system audio",
+            nextLanguage: "en",
+            nextSource: .system,
+            nextTimestamp: Date(timeIntervalSince1970: 1.2),
+            maxDuration: 8,
+            maxCharacters: 240
+        ))
+
+        let outputItemDone: [String: Any] = [
+            "type": "response.output_item.done",
+            "item": [
+                "id": "msg_007",
+                "content": [
+                    ["type": "output_text", "text": "Realtime nested final"]
+                ]
+            ]
+        ]
+        let outputItemSegments = OpenAIRealtimeAgentService.finalTranscriptSegments(
+            from: outputItemDone,
+            fallbackItemID: "response_ignored"
+        )
+        precondition(outputItemSegments.count == 1)
+        precondition(outputItemSegments[0].itemID == "msg_007")
+        precondition(outputItemSegments[0].text == "Realtime nested final")
+
+        let responseDone: [String: Any] = [
+            "type": "response.done",
+            "response": [
+                "id": "resp_ignored",
+                "output": [
+                    [
+                        "id": "msg_008",
+                        "content": [
+                            ["type": "output_text", "text": "First final item"]
+                        ]
+                    ],
+                    [
+                        "id": "msg_009",
+                        "content": [
+                            ["type": "output_text", "text": "Second final item"]
+                        ]
+                    ]
+                ]
+            ]
+        ]
+        let responseDoneSegments = OpenAIRealtimeAgentService.finalTranscriptSegments(
+            from: responseDone,
+            fallbackItemID: "response_ignored"
+        )
+        precondition(responseDoneSegments.map(\.itemID) == ["msg_008", "msg_009"])
+        precondition(responseDoneSegments.map(\.text) == ["First final item", "Second final item"])
 
         print("realtime core smoke ok")
     }

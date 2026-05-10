@@ -68,7 +68,7 @@ enum RealtimeSessionState: Equatable {
             switch mode {
             case .transcription: return "Realtime captions active"
             case .translation: return "Realtime translation active"
-            case .agent: return "Realtime assistant active"
+            case .agent: return "Realtime captions active"
             }
         case .reconnecting(let attempt):
             return "Realtime reconnecting (\(attempt))..."

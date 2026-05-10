@@ -2,7 +2,7 @@
 
 **Version:** 0.2 implementation checkpoint
 **Date:** 2026-05-10
-**Status:** M0-M4 implemented with safe synthetic runtime proof; private live mic/system checks deferred
+**Status:** M0-M4 implemented with Realtime-2 main-path proof; system-audio-only local capture still needs one follow-up
 **Primary app:** Meeting Translator Pro
 **Input brief:** `../../input/2026-5-10 9-39-34-Realtime_Voice_Skill_Build.md`
 **Parent docs:** `docs/PRD.md`, `docs/API.md`, `AGENTS.md`
@@ -16,17 +16,19 @@ Completed:
 - **M0:** Model access probed with the configured OpenAI key. `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` all returned HTTP 200. A narrow GitNexus app index was refreshed, with the caveat that this local GitNexus install cannot parse Swift symbols.
 - **M1:** Reusable skill and CLI foundation created and discoverable through `.agents/skills`, `.claude/skills`, and `.gemini/antigravity/skills`.
 - **M2:** Native Swift realtime services, router, coordinator, reducer, and 16 kHz to 24 kHz PCM boundary implemented without changing existing capture format.
-- **M3:** UI exposes `OpenAI Realtime (Recommended)`, realtime partial rows, caption latency settings, automatic fallback state, and translation-off rerouting.
-- **M4:** Build/sign/install passed; synthetic OpenAI realtime transcription and translation WebSocket probes passed; docs updated.
-- **Runtime hotfix:** Realtime captions now use continuous latency-preset chunks instead of VAD-held chunks, manual turn detection is explicit, and non-empty live partial rows are stop-finalized through the same confirmation/filter gates instead of disappearing when final events are delayed.
+- **M3:** UI exposes `OpenAI Realtime (Recommended)`, realtime partial rows, caption latency settings, automatic fallback state, and translation-off/same-language rerouting to Realtime-2 captions/dialog.
+- **M4:** Build/sign/install passed; synthetic OpenAI realtime transcription, translation, and Realtime-2 agent WebSocket probes passed; docs updated.
+- **Runtime hotfix:** Realtime captions now use `gpt-realtime-2` as the main direct captions/dialog route, parse nested `response.output_item.done` / `response.done` text, preserve non-empty live partial rows through the same confirmation/filter gates, filter short acronym-like debris such as `P P`, and merge nearby final transport chunks into readable dialog rows.
 
 Safety notes:
 
 - Realtime translation sessions start only when translations are visible, the input language is explicitly pinned to a different target language, and translated-audio playback is enabled.
-- Auto-detect and text-only translation start with realtime transcription and may translate final non-same text through the existing gated GPT text translation path.
+- Auto-detect and text-only translation start with `gpt-realtime-2` captions/dialog and may translate final non-same text through the existing gated GPT text translation path after detection.
 - Audio probes require an explicit CLI consent flag and should use synthetic or non-private fixtures.
-- Private live microphone/system-audio verification was not performed while the user was asleep; synthetic audio probes were used instead.
-- User screenshot feedback showed that VAD-first chunking made realtime captions appear late and draft cleanup could erase visible live text. This is now guarded by `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration` and `RealtimeDraftFinalizer`.
+- Runtime UI proof on `/Applications/MeetingTranslator.app`: a synthetic Chinese `say` fixture produced one meaningful Realtime-2 caption row instead of per-second chopped entries.
+- System-audio-only local UI proof is still a follow-up: with microphone off, both `say` and `afplay` synthetic fixtures left the Realtime-2 session active but did not create a new row on this Mac. The direct CLI Realtime-2 agent audio probe passed on the same WAV, so the remaining issue is likely local system-audio capture/runtime plumbing rather than model access.
+- User screenshot feedback showed that VAD-first chunking made realtime captions appear late, draft cleanup could erase visible live text, and per-commit final items could create chopped one-second rows. This is now guarded by `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration`, `RealtimeDraftFinalizer`, and `RealtimeUtteranceMerger`.
+- GitNexus refresh/impact/detect-changes currently reports a corrupted local WAL on this machine; direct Swift symbol search, smoke tests, Swift build, signed package build, model probes, and Computer Use runtime checks were used for this hotfix.
 
 Known follow-up:
 
@@ -36,13 +38,14 @@ Known follow-up:
 
 ## 1. Executive Decision
 
-Meeting Translator Pro should make the OpenAI Realtime family the main future live-voice stack, but it should not blindly use `gpt-realtime-2` for every job.
+Meeting Translator Pro should make `gpt-realtime-2` the main user-facing OpenAI Realtime path because the product promise is direct realtime dialog understanding: hear speech, understand it, and output useful captions with minimal chunking. Dedicated Realtime translation and Whisper STT remain important specialist paths, but they should not be the normal path the user experiences after choosing `OpenAI Realtime (Recommended)`.
 
 Recommended routing:
 
 | Product need | Primary model | Why |
 |---|---|---|
-| Live meeting captions / transcript timeline | `gpt-realtime-whisper` | Purpose-built for streaming speech-to-text deltas with tunable latency. |
+| Main live meeting captions / dialog understanding | `gpt-realtime-2` | Best matches the desired "listen, reason lightly, output now" behavior and avoids treating every transport chunk as the user's thought. |
+| Specialized raw STT fallback / exact transcript deltas | `gpt-realtime-whisper` | Purpose-built for streaming speech-to-text deltas with tunable latency, useful when Realtime-2 access or behavior is not acceptable. |
 | Live interpreter / translated audio plus transcript | `gpt-realtime-translate` | Purpose-built translation session on `/v1/realtime/translations`; lower operational complexity than agent-mediated translation. |
 | Voice assistant, meeting actions, tool calls, "ask the meeting app to do X" | `gpt-realtime-2` | Reasoning voice model with stronger instruction following and tool reliability. |
 
@@ -158,7 +161,8 @@ Do not regress code signing, permissions, existing engines, cost tracking, dupli
 
 - Do not replace all existing engines in the first implementation.
 - Do not build a full browser app; this is a native macOS app.
-- Do not make `gpt-realtime-2` the default translator for pure translation/caption workflows.
+- Do not start `gpt-realtime-translate` unless the user explicitly needs translated-audio interpretation and the language gate is satisfied.
+- Do not enable autonomous `gpt-realtime-2` meeting actions/tool calls without a user-visible approval gate.
 - Do not add autonomous meeting actions without a user-visible approval gate.
 - Do not remove the two-layer legacy pipeline until realtime paths are proven better on real audio.
 - Do not create a new YouTube/media reading skill; reuse `Read-Media-Gemini`.
@@ -221,8 +225,9 @@ Create a single routing decision layer with this default behavior:
 
 | Condition | Route |
 |---|---|
-| `showTranslations == false` | `gpt-realtime-whisper` transcription session. |
-| Target language equals detected/specified input language | `gpt-realtime-whisper` transcription session. |
+| `showTranslations == false` | `gpt-realtime-2` realtime captions/dialog session. |
+| Target language equals detected/specified input language | `gpt-realtime-2` realtime captions/dialog session. |
+| Auto-detect source language not yet known | `gpt-realtime-2` realtime captions/dialog session; defer text translation until detection. |
 | Translation on, live translated speech wanted | `gpt-realtime-translate` translation session. |
 | User asks the app to reason, call tools, summarize, or act | `gpt-realtime-2` voice-agent session. |
 | Realtime session fails or quota unavailable | Existing OpenAI/Gemini fallback engine selected by user or automatic fallback setting. |
@@ -323,9 +328,9 @@ Add settings without breaking existing keys:
 | Setting | Default | Notes |
 |---|---|---|
 | Realtime enabled | On after verified build | Feature flag until live E2E passes. |
-| Realtime mode | Auto | Auto chooses transcription vs translation vs agent. |
-| Caption latency preset | Balanced | Maps to transcription latency tuning. |
-| Reasoning effort | Low | Only for `gpt-realtime-2`; advanced setting. |
+| Realtime mode | Auto | Auto chooses Realtime-2 captions/dialog vs dedicated live translation. |
+| Caption latency preset | Balanced | Applies to Whisper fallback and local send cadence. |
+| Reasoning effort | Low | Main `gpt-realtime-2` captions/dialog setting; keep low for latency. |
 | Translated audio playback | Off | Text-first by default to avoid meeting feedback loops. |
 | Automatic fallback | On | Uses legacy OpenAI/Gemini path after recoverable realtime failure. |
 
@@ -571,9 +576,9 @@ Minimum completion proof before claiming implementation done:
 - Update `docs/API.md`, `docs/PRD.md`, `AGENTS.md`, and changelog/version as needed.
 - Commit in small milestones.
 
-### M5: Optional Agentic Assistant Mode
+### M5: Optional Approval-Gated Assistant Actions
 
-- Add `gpt-realtime-2` mode for voice commands, summaries, and meeting actions.
+- Extend the existing `gpt-realtime-2` captions/dialog session into voice commands, summaries, and meeting actions only behind explicit approval gates.
 - Keep actions approval-gated.
 - Use official OpenAI realtime agent examples and Agents SDK docs as references.
 
@@ -589,6 +594,7 @@ Minimum completion proof before claiming implementation done:
 | Partial transcript jitter feels messy | Poor UX | Use one in-progress row per item and reconcile final events. |
 | 16 kHz to 24 kHz conversion adds latency | Worse realtime feel | Measure resampling cost and tune chunk size. |
 | Meeting audio includes private content | Privacy risk | No debug raw audio logs; explicit recording state. |
+| Realtime-2 captions accidentally become an assistant that answers instead of transcribing | Meeting transcript trust risk | System instructions force faithful transcript/translation only; keep tools/actions disabled in the caption route. |
 | Agent mode performs unsafe actions | User trust risk | Keep agentic actions off by default and approval-gated. |
 | GitNexus index stale | Bad blast-radius judgment | Refresh before implementation. |
 
@@ -596,8 +602,8 @@ Minimum completion proof before claiming implementation done:
 
 ## 15. Open Questions with Recommended Defaults
 
-1. Should `gpt-realtime-2` ship in the first app release?
-   - Recommendation: no. Build its foundation and optionally a hidden/dev assistant mode, but ship captions/translation first.
+1. Should `gpt-realtime-2` ship as the main OpenAI Realtime path?
+   - Decision 2026-05-10: yes. User feedback showed Whisper-style chunked realtime was not the desired product; `gpt-realtime-2` is now the main direct captions/dialog path, while translated-audio and raw STT remain specialist routes.
 
 2. Should native macOS use WebRTC or WebSocket?
    - Recommendation: WebSocket first. The app already owns raw audio capture. WebRTC is better for browser/mobile clients that capture/play audio directly.

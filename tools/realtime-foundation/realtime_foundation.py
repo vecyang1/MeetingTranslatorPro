@@ -35,17 +35,22 @@ MODEL_ROUTES: dict[str, dict[str, str]] = {
         "model": "gpt-realtime-2",
         "endpoint": "/v1/realtime",
         "transport": "Realtime conversation session",
-        "purpose": "Voice assistant, tool calling, actions, and reasoning",
+        "purpose": "Default live captions/dialog understanding plus future voice assistant actions",
         "pricing": "$4/$24 text tokens; $32/$64 audio tokens per 1M input/output",
     },
 }
 
 TASK_ALIASES = {
-    "captions": "transcription",
-    "caption": "transcription",
-    "transcribe": "transcription",
-    "transcription": "transcription",
+    "captions": "agent",
+    "caption": "agent",
+    "meeting-captions": "agent",
+    "dialog": "agent",
+    "conversation": "agent",
+    "transcribe": "agent",
+    "transcription": "agent",
     "speech-to-text": "transcription",
+    "whisper": "transcription",
+    "whisper-transcription": "transcription",
     "live-translation": "translation",
     "translate": "translation",
     "translation": "translation",
@@ -114,10 +119,13 @@ def print_model_table() -> None:
 def choose_mode(task: str, client: str, show_translations: bool, same_language: bool) -> str:
     normalized_task = task.strip().lower()
     normalized_client = client.strip().lower()
-    if not show_translations or same_language:
-        return "transcription"
     if normalized_task in TASK_ALIASES:
-        return TASK_ALIASES[normalized_task]
+        mode = TASK_ALIASES[normalized_task]
+        if mode == "translation" and (not show_translations or same_language):
+            return "agent"
+        return mode
+    if not show_translations or same_language:
+        return "agent"
     if "browser" in normalized_client and "translate" in normalized_task:
         return "translation"
     if "tool" in normalized_task or "action" in normalized_task or "assistant" in normalized_task:
@@ -135,9 +143,9 @@ def command_recommend(args: argparse.Namespace) -> int:
     if mode == "translation":
         print("gate: start this session only when !sameLanguage && showTranslations")
     elif mode == "agent":
-        print("gate: keep actions approval-gated; do not use for pure captions/translation")
+        print("gate: default captions path; keep actions approval-gated and translate only after language gate")
     else:
-        print("gate: safe default when translations are hidden or same-language")
+        print("gate: specialized raw STT fallback when exact transcript deltas are required")
     return 0
 
 
@@ -181,6 +189,46 @@ def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.
     return pcm
 
 
+def extract_agent_probe_text(event: dict[str, Any]) -> str:
+    direct = event.get("text") or event.get("transcript") or event.get("delta")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    item = event.get("item")
+    if isinstance(item, dict):
+        text = extract_agent_probe_item_text(item)
+        if text:
+            return text
+    response = event.get("response")
+    if isinstance(response, dict):
+        output = response.get("output")
+        if isinstance(output, list):
+            chunks = [
+                text
+                for item in output
+                if isinstance(item, dict)
+                for text in [extract_agent_probe_item_text(item)]
+                if text
+            ]
+            if chunks:
+                return " ".join(chunks).strip()
+    return ""
+
+
+def extract_agent_probe_item_text(item: dict[str, Any]) -> str:
+    content = item.get("content")
+    if isinstance(content, list):
+        chunks: list[str] = []
+        for part in content:
+            if not isinstance(part, dict):
+                continue
+            text = part.get("text") or part.get("transcript")
+            if isinstance(text, str) and text.strip():
+                chunks.append(text.strip())
+        return " ".join(chunks).strip()
+    text = item.get("text") or item.get("transcript")
+    return text.strip() if isinstance(text, str) else ""
+
+
 def websocket_audio_probe(
     mode: str,
     key: str,
@@ -217,7 +265,7 @@ def websocket_audio_probe(
         print("certifi not available; using platform default CA store for websocket probe")
 
     ws = websocket.WebSocket(sslopt=ssl_options)
-    ws.settimeout(timeout)
+    ws.settimeout(min(timeout, 2.0))
     ws.connect(
         url,
         header=[f"Authorization: Bearer {key}", "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe"],
@@ -261,28 +309,90 @@ def websocket_audio_probe(
                 "conversation.item.input_audio_transcription.completed",
             }
         else:
-            ws.send(json.dumps({"type": "session.update", "session": {"type": "realtime", "reasoning": {"effort": "low"}}}))
-            print("agent websocket connected and session.update sent")
-            return 0
+            ws.send(
+                json.dumps(
+                    {
+                        "type": "session.update",
+                        "session": {
+                            "type": "realtime",
+                            "output_modalities": ["text"],
+                            "reasoning": {"effort": "low"},
+                            "instructions": (
+                                "You are a faithful live caption engine. "
+                                "Output only the transcript of the user's speech. "
+                                "Do not answer, summarize, or add labels."
+                            ),
+                            "audio": {
+                                "input": {
+                                    "format": {"type": "audio/pcm", "rate": 24000},
+                                    "turn_detection": None,
+                                }
+                            },
+                        },
+                    }
+                )
+            )
+            ready_seen = wait_for_session_updated(ws, timeout)
+            if not ready_seen:
+                print("agent audio probe failed before session.updated")
+                return 1
+            ws.send(json.dumps({"type": "input_audio_buffer.append", "audio": base64.b64encode(pcm).decode("ascii")}))
+            ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
+            ws.send(json.dumps({"type": "response.create", "response": {"output_modalities": ["text"]}}))
+            wanted = {
+                "response.output_text.delta",
+                "response.output_text.done",
+                "response.text.delta",
+                "response.text.done",
+                "response.output_item.done",
+                "response.done",
+            }
 
         deadline = time.time() + timeout
         seen: list[str] = []
+        agent_delta_text = ""
+        agent_final_events = {
+            "response.output_text.done",
+            "response.text.done",
+            "response.output_item.done",
+            "response.done",
+        }
         while time.time() < deadline:
             try:
                 event = json.loads(ws.recv())
             except Exception as exc:
-                if exc.__class__.__name__ != "WebSocketTimeoutException":
+                if exc.__class__.__name__ == "WebSocketTimeoutException":
+                    continue
+                else:
                     print(f"{mode} audio probe receive failed: {exc.__class__.__name__}")
-                break
+                    break
             event_type = event.get("type", "")
             seen.append(event_type)
             if event_type in wanted:
+                if mode == "agent":
+                    text = extract_agent_probe_text(event)
+                    if text and event_type not in agent_final_events:
+                        agent_delta_text = text
+                        continue
+                    if text and event_type in agent_final_events:
+                        if show_text:
+                            print(f"{mode} audio probe final event: {event_type} {text[:120]}")
+                        else:
+                            print(f"{mode} audio probe final event: {event_type}")
+                        return 0
+                    continue
                 if show_text:
                     text = event.get("delta") or event.get("transcript") or "<audio delta>"
                     print(f"{mode} audio probe event: {event_type} {str(text)[:120]}")
                 else:
                     print(f"{mode} audio probe event: {event_type}")
                 return 0
+        if mode == "agent" and agent_delta_text:
+            print(
+                f"{mode} audio probe saw delta text but no final text; "
+                f"last delta: {agent_delta_text[:120]}; events seen: {', '.join(seen[-8:]) or 'none'}"
+            )
+            return 1
         print(f"{mode} audio probe timed out; events seen: {', '.join(seen[-8:]) or 'none'}")
         return 1
     finally:
@@ -294,7 +404,9 @@ def wait_for_session_updated(ws: Any, timeout: float) -> bool:
     while time.time() < deadline:
         try:
             event = json.loads(ws.recv())
-        except Exception:
+        except Exception as exc:
+            if exc.__class__.__name__ == "WebSocketTimeoutException":
+                continue
             return False
         event_type = event.get("type", "")
         if event_type == "session.updated":

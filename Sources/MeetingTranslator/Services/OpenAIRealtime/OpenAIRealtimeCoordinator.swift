@@ -6,7 +6,7 @@ final class OpenAIRealtimeCoordinator {
     private let reducer = RealtimeEventReducer()
     private var transcriptionServices: [TranscriptionEntry.AudioSource: OpenAIRealtimeTranscriptionService] = [:]
     private var translationServices: [TranscriptionEntry.AudioSource: OpenAIRealtimeTranslationService] = [:]
-    private var agentService: OpenAIRealtimeAgentService?
+    private var agentServices: [TranscriptionEntry.AudioSource: OpenAIRealtimeAgentService] = [:]
 
     private(set) var activeMode: RealtimeRouteMode?
 
@@ -15,7 +15,7 @@ final class OpenAIRealtimeCoordinator {
     func updateAPIKey(_ key: String) {
         transcriptionServices.values.forEach { $0.updateAPIKey(key) }
         translationServices.values.forEach { $0.updateAPIKey(key) }
-        agentService?.updateAPIKey(key)
+        agentServices.values.forEach { $0.updateAPIKey(key) }
     }
 
     func start(
@@ -55,8 +55,12 @@ final class OpenAIRealtimeCoordinator {
             case .agent:
                 let service = OpenAIRealtimeAgentService(apiKey: apiKey, source: source)
                 wire(service)
-                agentService = service
-                try await service.connect(reasoningEffort: reasoningEffort)
+                agentServices[source] = service
+                try await service.connect(
+                    targetLanguageCode: targetLanguageCode,
+                    shouldTranslate: showTranslations && !sameLanguage && languageHint != nil,
+                    reasoningEffort: reasoningEffort
+                )
             }
         }
 
@@ -66,10 +70,10 @@ final class OpenAIRealtimeCoordinator {
     func stop() {
         transcriptionServices.values.forEach { $0.disconnect() }
         translationServices.values.forEach { $0.disconnect() }
-        agentService?.disconnect()
+        agentServices.values.forEach { $0.disconnect() }
         transcriptionServices.removeAll()
         translationServices.removeAll()
-        agentService = nil
+        agentServices.removeAll()
         activeMode = nil
         reducer.reset()
     }
@@ -80,7 +84,9 @@ final class OpenAIRealtimeCoordinator {
             return translationServices[source]?.sendAudio(data) ?? false
         case .transcription:
             return transcriptionServices[source]?.sendAudio(data) ?? false
-        case .agent, .none:
+        case .agent:
+            return agentServices[source]?.sendAudio(data) ?? false
+        case .none:
             return false
         }
     }

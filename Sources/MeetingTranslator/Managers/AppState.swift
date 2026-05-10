@@ -69,6 +69,10 @@ final class AppState: ObservableObject {
     /// Maximum entries to keep in memory — older confirmed entries are trimmed
     private let maxEntries = 500
 
+    /// Realtime API items are transport chunks. Merge nearby final chunks into readable dialog rows.
+    private let realtimeUtteranceMaxDurationSeconds: TimeInterval = 8.0
+    private let realtimeUtteranceMaxCharacters = 240
+
     /// Consecutive error counter for circuit-breaker pattern
     private var consecutiveErrors = 0
     private let maxConsecutiveErrors = 5
@@ -141,6 +145,13 @@ final class AppState: ObservableObject {
         // Exact match blocklist
         if hallucinationExactSet.contains(lower) { return true }
 
+        // Realtime speech models can emit tiny acronym-like debris from code-switched words
+        // (for example "P P" while hearing "GPT"). Do not let those fragments become rows.
+        let words = tokenize(trimmed)
+        if words.count >= 2 && words.count <= 3 && words.allSatisfy(isSingleLatinLetter) {
+            return true
+        }
+
         // Prefix blocklist
         for prefix in hallucinationPrefixSet {
             if lower.hasPrefix(prefix.lowercased()) { return true }
@@ -169,7 +180,6 @@ final class AppState: ObservableObject {
 
         // --- Repeated word/phrase detection ---
         // Split on spaces and CJK boundaries
-        let words = tokenize(trimmed)
         if words.count >= 4 {
             // Check if all words are the same
             let uniqueWords = Set(words)
@@ -188,6 +198,12 @@ final class AppState: ObservableObject {
         }
 
         return false
+    }
+
+    private func isSingleLatinLetter(_ token: String) -> Bool {
+        guard token.count == 1, let scalar = token.unicodeScalars.first else { return false }
+        return (scalar.value >= 0x41 && scalar.value <= 0x5A)
+            || (scalar.value >= 0x61 && scalar.value <= 0x7A)
     }
 
     /// Tokenize text into words, treating CJK characters as individual tokens
@@ -243,7 +259,12 @@ final class AppState: ObservableObject {
     /// Check if a new transcription text is a near-duplicate of any recent entry.
     /// Uses character-level bigram similarity (Dice coefficient) which is fast and language-agnostic.
     /// Returns true if the text should be dropped as an echo duplicate.
-    private func isDuplicateOfRecent(_ text: String, within window: TimeInterval? = nil, excluding entryID: UUID? = nil) -> Bool {
+    private func isDuplicateOfRecent(
+        _ text: String,
+        within window: TimeInterval? = nil,
+        excluding entryID: UUID? = nil,
+        excludingEntryIDs: Set<UUID> = []
+    ) -> Bool {
         let lookback = window ?? echoDedupWindowSeconds
         let cutoff = Date().addingTimeInterval(-lookback)
         let normalizedNew = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -255,6 +276,7 @@ final class AppState: ObservableObject {
         // Check recent entries (walk backwards for efficiency)
         for entry in entries.reversed() {
             if let entryID, entry.id == entryID { continue }
+            if excludingEntryIDs.contains(entry.id) { continue }
             // Stop once we're outside the time window
             if entry.timestamp < cutoff { break }
 
@@ -699,7 +721,18 @@ final class AppState: ObservableObject {
             return
         }
 
+        let currentEntry = entries.first { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }
+        let visibleDraftText = currentEntry?.isDraft == true
+            ? currentEntry?.originalText.trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
+
         var text = reduced.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if (text.isEmpty || isHallucination(text)),
+           let visibleDraftText,
+           !visibleDraftText.isEmpty,
+           !isHallucination(visibleDraftText) {
+            text = visibleDraftText
+        }
         guard !text.isEmpty, !isHallucination(text) else {
             removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
             return
@@ -713,26 +746,60 @@ final class AppState: ObservableObject {
             }
         }
 
-        let existingID = entries.first(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source })?.id
-        guard !isDuplicateOfRecent(text, excluding: existingID) else {
+        let detected = reduced.language ?? detectLanguageFromText(text)
+        let mergeTarget = realtimeMode == .translation ? nil : realtimeMergeCandidate(
+            reduced: reduced,
+            text: text,
+            detected: detected
+        )
+        let existingID = currentEntry?.id
+        let duplicateExclusions = Set([existingID, mergeTarget?.id].compactMap { $0 })
+        guard !isDuplicateOfRecent(text, excludingEntryIDs: duplicateExclusions) else {
             removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
             return
         }
 
-        let detected = reduced.language ?? detectLanguageFromText(text)
+        var finalText = text
+        var translatedPrefix: String?
+        let mergeTargetID = mergeTarget?.id
+        if let mergeTarget {
+            guard let merged = RealtimeUtteranceMerger.mergedText(
+                previous: mergeTarget.originalText,
+                next: text
+            ) else {
+                removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+                return
+            }
+            finalText = merged
+            translatedPrefix = mergeTarget.translatedText
+        }
+
         let sameLanguage = isSameLanguage(detected: detected, target: targetLanguage)
-        var translated = sameLanguage || !showTranslations ? nil : reduced.translatedText
-        if translated == nil && showTranslations && !sameLanguage && realtimeMode != .translation {
+        var translatedSegment = sameLanguage || !showTranslations ? nil : reduced.translatedText
+        if translatedSegment == nil && showTranslations && !sameLanguage && realtimeMode != .translation {
             do {
                 statusMessage = "Translating..."
-                translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
+                translatedSegment = try await translationService.translate(text: text, to: targetLanguage.rawValue)
             } catch {
                 showError("Translation failed: \(error.localizedDescription.prefix(60))")
             }
         }
+        let translated = mergeTranslations(previous: translatedPrefix, next: translatedSegment)
 
-        if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
-            entries[idx].originalText = text
+        if let mergeTargetID, let mergeIndex = entries.firstIndex(where: { $0.id == mergeTargetID }) {
+            let keptEntryID = entries[mergeIndex].id
+            entries[mergeIndex].originalText = finalText
+            entries[mergeIndex].translatedText = translated
+            entries[mergeIndex].detectedLanguage = detected
+            entries[mergeIndex].isTranslating = realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
+            entries[mergeIndex].speakerLabel = buildSpeakerLabel(source: reduced.source, language: detected)
+            entries[mergeIndex].isDraft = false
+            entries[mergeIndex].isQualityResult = false
+            entries.removeAll {
+                $0.id != keptEntryID && $0.realtimeItemID == reduced.itemID && $0.source == reduced.source
+            }
+        } else if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+            entries[idx].originalText = finalText
             entries[idx].translatedText = translated
             entries[idx].detectedLanguage = detected
             entries[idx].isTranslating = realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
@@ -742,7 +809,7 @@ final class AppState: ObservableObject {
         } else {
             let entry = TranscriptionEntry(
                 timestamp: reduced.timestamp,
-                originalText: text,
+                originalText: finalText,
                 translatedText: translated,
                 detectedLanguage: detected,
                 isTranslating: realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage,
@@ -754,12 +821,43 @@ final class AppState: ObservableObject {
             insertEntryChronologically(entry)
         }
 
-        lastConfirmedText = text
+        lastConfirmedText = finalText
         lastConfirmedTranslation = translated
         lastConfirmedLanguage = detected
         markProcessingSuccess()
         trimEntriesIfNeeded()
         if isRecording { statusMessage = openAIRealtimeState.userMessage }
+    }
+
+    private func realtimeMergeCandidate(
+        reduced: RealtimeReducedEntry,
+        text: String,
+        detected: String?
+    ) -> TranscriptionEntry? {
+        guard let idx = entries.indices.reversed().first(where: { idx in
+            let entry = entries[idx]
+            guard entry.realtimeItemID != reduced.itemID else { return false }
+            return RealtimeUtteranceMerger.canMerge(
+                previous: entry,
+                nextText: text,
+                nextLanguage: detected,
+                nextSource: reduced.source,
+                nextTimestamp: reduced.timestamp,
+                maxDuration: realtimeUtteranceMaxDurationSeconds,
+                maxCharacters: realtimeUtteranceMaxCharacters
+            )
+        }) else { return nil }
+        return entries[idx]
+    }
+
+    private func mergeTranslations(previous: String?, next: String?) -> String? {
+        guard let next, !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return previous
+        }
+        guard let previous, !previous.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return next
+        }
+        return RealtimeUtteranceMerger.mergedText(previous: previous, next: next) ?? previous
     }
 
     private func removeRealtimeEntry(itemID: String, source: TranscriptionEntry.AudioSource) {

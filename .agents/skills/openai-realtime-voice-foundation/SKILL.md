@@ -7,22 +7,26 @@ description: Use when building or auditing OpenAI Realtime voice features for Me
 
 ## Core Rule
 
-Choose the realtime model by outcome, not hype:
+Choose the realtime model by product outcome and UX promise:
 
 | Outcome | Model | Endpoint |
 |---|---|---|
-| Live captions / transcript deltas | `gpt-realtime-whisper` | transcription session |
+| Main Meeting Translator Realtime captions / dialog understanding | `gpt-realtime-2` | `/v1/realtime` |
+| Specialized raw STT fallback / transcript deltas | `gpt-realtime-whisper` | transcription session |
 | Live translation / interpreter | `gpt-realtime-translate` | `/v1/realtime/translations` |
 | Assistant, tools, actions, reasoning | `gpt-realtime-2` | `/v1/realtime` |
 
-For Meeting Translator Pro, the default shipped path is captions/translation first. Keep `gpt-realtime-2` for hidden/dev assistant foundations until user-visible actions have approval gates.
+For Meeting Translator Pro, the user-facing `OpenAI Realtime (Recommended)` path is led by `gpt-realtime-2` for direct "hear, understand, output" captions/dialog. Keep meeting actions and tool calls approval-gated, but do not demote the main realtime caption experience back to chunked Whisper unless the Realtime-2 route is unavailable.
 
 ## Meeting Translator Invariants
 
 - Do not alter bundle ID, signing identity, entitlements, permission behavior, or `build_app.sh` install path.
 - Never start or maintain a translation session unless `!sameLanguage && showTranslations` and translated-audio/live-interpreter mode is enabled.
+- Translation-off, same-language, and auto-detect-with-unknown-source modes should stay on `gpt-realtime-2` captions/dialog, not a translation session.
 - Preserve separate microphone and system-audio source labels.
 - Partial transcript rows update in place by `(source, itemID)`; final rows still pass empty, hallucination, overlap, echo dedup, language, and translation gates.
+- Provider final items may be transport chunks, not user dialog turns. Merge nearby same-source/same-language final chunks into readable utterance rows before display/export.
+- Realtime-2 text may arrive as `response.output_text.*`, `response.output_item.done`, or `response.done`; future agents must parse nested final response containers before declaring "no caption output." For nested finals, reconcile by inner `item.id` / `response.output[].id` so existing partial rows finalize in place.
 - Keep existing OpenAI Whisper+GPT, Gemini Flash, and Gemini Live engines selectable as fallbacks.
 - Do not log raw audio or full private transcripts in debug output.
 
@@ -45,7 +49,8 @@ For Meeting Translator Pro, the default shipped path is captions/translation fir
 
 ## Common Mistakes
 
-- Using `gpt-realtime-2` for pure translation because it is the "main" model.
+- Treating `gpt-realtime-whisper` as the main user-facing realtime engine after `gpt-realtime-2` is available and verified.
+- Using `gpt-realtime-2` to start a hidden translation spend path when translations are off, same-language, or source language is still unknown.
 - Hiding translation UI while leaving a translation session connected.
 - Mixing mic and system audio into one realtime stream without preserving source identity.
 - Treating partial deltas as permanent transcript entries.

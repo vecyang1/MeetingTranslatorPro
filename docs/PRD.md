@@ -43,7 +43,7 @@ Four transcription engines are supported, each with different latency/accuracy/c
 | **OpenAI (Whisper + GPT)** | 10–15s | Highest | Medium | Two-step: `gpt-4o-mini-transcribe` for STT, `gpt-4o-mini` for translation |
 | **Gemini 2.5 Flash** | 3–5s | High | Low | Single API call: transcription + translation in one request |
 | **Gemini 3.1 Flash Live** | <1s | Good | Lowest | WebSocket streaming: real-time STT via `inputAudioTranscription`, then separate translation |
-| **OpenAI Realtime (Recommended)** | <1s target | High | Medium | WebSocket sessions using `gpt-realtime-whisper` for captions and gated `gpt-realtime-translate` for pinned-language translation |
+| **OpenAI Realtime (Recommended)** | <1s target | High | Medium | WebSocket sessions using `gpt-realtime-2` for direct live captions/dialog understanding, with gated `gpt-realtime-translate` only for explicit translated-audio interpretation |
 
 ### 3.3 Two-Layer Pipeline
 
@@ -252,7 +252,7 @@ All user settings are stored in `UserDefaults` under the `com.meetingtranslator.
 | `com.meetingtranslator.noisegate` | Double | 0.003 | RMS noise gate threshold |
 | `com.meetingtranslator.inputlanguages` | [String] | [] | Expected input languages |
 | `com.meetingtranslator.realtime.captionlatency` | String | "Balanced" | OpenAI Realtime caption latency preset |
-| `com.meetingtranslator.realtime.reasoningeffort` | String | "low" | Dev-only `gpt-realtime-2` effort setting |
+| `com.meetingtranslator.realtime.reasoningeffort` | String | "low" | `gpt-realtime-2` effort setting; kept low for live caption latency |
 | `com.meetingtranslator.realtime.translatedaudioplayback` | Bool | false | Reserved translated-audio playback toggle |
 | `com.meetingtranslator.realtime.automaticfallback` | Bool | true | Switch to legacy OpenAI after recoverable realtime failure |
 | `com.meetingtranslator.totalcost` | Double | 0.0 | All-time API cost |

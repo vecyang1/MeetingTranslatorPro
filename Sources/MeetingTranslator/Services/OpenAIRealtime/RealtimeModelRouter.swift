@@ -17,22 +17,22 @@ struct RealtimeModelRouter {
             )
         }
 
-        guard showTranslations, !sameLanguage, wantsTranslatedAudio else {
+        if showTranslations, !sameLanguage, wantsTranslatedAudio {
             return RealtimeRouteDecision(
-                mode: .transcription,
-                model: OpenAIRealtimeModel.realtimeWhisper.rawValue,
-                endpointPath: "/v1/realtime",
-                reason: "Captions-only route because translation is hidden, same-language, or translated audio is off.",
-                shouldStartTranslationSession: false
+                mode: .translation,
+                model: OpenAIRealtimeModel.realtimeTranslate.rawValue,
+                endpointPath: "/v1/realtime/translations",
+                reason: "Live translated-audio route because translation is visible and source differs from target.",
+                shouldStartTranslationSession: true
             )
         }
 
         return RealtimeRouteDecision(
-            mode: .translation,
-            model: OpenAIRealtimeModel.realtimeTranslate.rawValue,
-            endpointPath: "/v1/realtime/translations",
-            reason: "Translation is visible and source differs from target.",
-            shouldStartTranslationSession: true
+            mode: .agent,
+            model: OpenAIRealtimeModel.realtimeAgent.rawValue,
+            endpointPath: "/v1/realtime",
+            reason: "Default live captions route uses GPT Realtime 2 for lower-latency dialog understanding.",
+            shouldStartTranslationSession: false
         )
     }
 }

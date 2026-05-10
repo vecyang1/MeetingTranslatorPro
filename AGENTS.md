@@ -210,15 +210,18 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 - `OpenAIRealtimeCoordinator` owns realtime service lifecycle, routing, reducer state, and source-aware session maps.
 - `OpenAIRealtime*Service` files own WebSocket setup and raw event parsing.
 - `RealtimeEventReducer` accumulates partial deltas by `(source, itemID)`.
+- `RealtimeUtteranceMerger` merges nearby final transport chunks from the same source/language into readable dialog rows. Do not treat every committed realtime audio chunk as its own permanent sentence.
 - `AppState` confirms entries through the existing empty, hallucination, overlap, echo dedup, language, and translation gates.
 
 **Cost/privacy gate:**
 - Never start or maintain `gpt-realtime-translate` unless translation UI is visible, translated-audio playback is enabled, and the app knows the source language is different from the target.
-- Translation-off and same-language modes must route to `gpt-realtime-whisper`, not a translation session.
-- Auto-detect input and text-only translation are treated as transcription-first; translate final non-same text only after detection.
+- Translation-off and same-language modes must stay on the `gpt-realtime-2` realtime captions/dialog path, not a translation session.
+- Auto-detect input and text-only translation are treated as Realtime-2 caption-first; translate final non-same text only after detection.
 - Log realtime audio duration cost only after an audio chunk is accepted for sending by a ready session.
 
 **Protocol notes verified 2026-05-10:**
+- Main OpenAI Realtime captions/dialog route: `gpt-realtime-2` over `/v1/realtime`, with `reasoning.effort` defaulting to low for latency.
+- `OpenAIRealtimeAgentService` must parse both streaming text events and nested final response containers; missing `response.done`/`response.output_item.done` parsing can look like "session active, cost moving, no captions." Nested finals must reconcile by inner `item.id` / `response.output[].id`, not only top-level `response_id`.
 - Transcription WebSocket URL: `wss://api.openai.com/v1/realtime?intent=transcription`.
 - Put `gpt-realtime-whisper` in `session.update`, not in the transcription URL query.
 - Do not configure `server_vad` turn detection for `gpt-realtime-whisper`; set manual turn detection (`null`) and commit each app audio chunk explicitly after append.

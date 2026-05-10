@@ -235,7 +235,7 @@ The primary data model representing a single transcription/translation entry in 
 struct TranscriptionEntry: Identifiable, Equatable {
     let id: UUID
     let timestamp: Date
-    let originalText: String
+    var originalText: String
     var translatedText: String?
     var detectedLanguage: String?       // ISO 639-1 code
     var isTranslating: Bool             // true while translation API call is in-flight
@@ -243,6 +243,7 @@ struct TranscriptionEntry: Identifiable, Equatable {
     var speakerLabel: String?           // "You", "Speaker (Chinese)", etc.
     var isDraft: Bool                   // true = Layer 1 fast draft
     var isQualityResult: Bool           // true = Layer 2 quality/stitch result
+    var realtimeItemID: String?         // provider item id for realtime reconciliation
 }
 ```
 
@@ -492,9 +493,9 @@ The realtime engine is exposed to users as one friendly option: `OpenAI Realtime
 
 | Mode | Model | Runtime boundary |
 |---|---|---|
-| Captions | `gpt-realtime-whisper` | `OpenAIRealtimeTranscriptionService` over `wss://api.openai.com/v1/realtime?intent=transcription` |
+| Main captions/dialog | `gpt-realtime-2` | `OpenAIRealtimeAgentService` over `/v1/realtime` with text output and server VAD |
+| Specialized STT fallback | `gpt-realtime-whisper` | `OpenAIRealtimeTranscriptionService` over `wss://api.openai.com/v1/realtime?intent=transcription` |
 | Live translation | `gpt-realtime-translate` | `OpenAIRealtimeTranslationService` over `/v1/realtime/translations` |
-| Dev assistant foundation | `gpt-realtime-2` | `OpenAIRealtimeAgentService`, hidden/dev-only |
 
 Realtime service ownership:
 
@@ -503,9 +504,12 @@ Realtime service ownership:
 - `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation.
 - `AudioResampler`: explicit 16 kHz capture to 24 kHz PCM16 realtime boundary.
 - `RealtimeDraftFinalizer`: collects non-empty realtime live captions as stop-time final candidates so `AppState.confirmRealtimeEntry()` can apply the usual filters, while still dropping empty/hallucinated realtime drafts.
+- `RealtimeUtteranceMerger`: treats provider final items as transport chunks and merges nearby same-source/same-language chunks into readable dialog rows before display/export.
 - `OpenAIRealtimeWebSocketService`: suppresses heartbeat/send errors during intentional shutdown so Stop does not trigger legacy fallback.
 
 `gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app sets manual turn detection (`null`), appends latency-preset PCM chunks, and commits each chunk explicitly. Realtime capture uses continuous timer chunking, not the legacy VAD-first behavior, so active speech continues flowing before silence.
+
+`gpt-realtime-2` sessions are the main user-facing OpenAI Realtime path. They use low reasoning effort for latency, text output only for captions, `server_vad` with a slightly less eager 700 ms silence window, and never enable tool/action behavior without a separate approval-gated assistant mode. Agent service parsing accepts both direct text events (`response.output_text.*`) and nested final response containers (`response.output_item.done`, `response.done`); nested finals are reconciled by inner message IDs (`item.id` / `response.output[].id`) so partial rows finalize in place.
 
 App-level realtime events:
 
