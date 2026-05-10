@@ -7,9 +7,11 @@ import argparse
 import base64
 import json
 import os
+import ssl
 import subprocess
 import sys
 import time
+import warnings
 import wave
 from pathlib import Path
 from typing import Any
@@ -17,7 +19,7 @@ from typing import Any
 MODEL_ROUTES: dict[str, dict[str, str]] = {
     "transcription": {
         "model": "gpt-realtime-whisper",
-        "endpoint": "/v1/realtime/transcription_sessions",
+        "endpoint": "/v1/realtime?intent=transcription",
         "transport": "WebSocket for native/server raw PCM, WebRTC for browser audio",
         "purpose": "Live transcript deltas without assistant speech",
         "pricing": "$0.017/min realtime audio duration",
@@ -71,16 +73,17 @@ def load_openai_key() -> str:
 
 
 def curl_json(url: str, key: str) -> tuple[int, dict[str, Any]]:
+    curl_config = f'header = "Authorization: Bearer {key}"\nurl = "{url}"\n'
     result = subprocess.run(
         [
             "curl",
             "-sS",
             "-w",
             "\n%{http_code}",
-            "-H",
-            f"Authorization: Bearer {key}",
-            url,
+            "--config",
+            "-",
         ],
+        input=curl_config,
         text=True,
         capture_output=True,
         check=False,
@@ -158,7 +161,9 @@ def probe_model_lookup(mode: str, key: str) -> int:
 
 
 def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.0) -> bytes:
-    import audioop
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        import audioop
 
     with wave.open(str(path), "rb") as wav:
         channels = wav.getnchannels()
@@ -176,7 +181,14 @@ def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.
     return pcm
 
 
-def websocket_audio_probe(mode: str, key: str, audio_path: Path, target: str, timeout: float) -> int:
+def websocket_audio_probe(
+    mode: str,
+    key: str,
+    audio_path: Path,
+    target: str,
+    timeout: float,
+    show_text: bool,
+) -> int:
     try:
         import websocket
     except Exception:
@@ -191,16 +203,33 @@ def websocket_audio_probe(mode: str, key: str, audio_path: Path, target: str, ti
     model = MODEL_ROUTES[mode]["model"]
     if mode == "translation":
         url = "wss://api.openai.com/v1/realtime/translations?model=gpt-realtime-translate"
+    elif mode == "transcription":
+        url = "wss://api.openai.com/v1/realtime?intent=transcription"
     else:
         url = f"wss://api.openai.com/v1/realtime?model={model}"
 
-    ws = websocket.WebSocket()
+    ssl_options: dict[str, Any] = {"cert_reqs": ssl.CERT_REQUIRED}
+    try:
+        import certifi
+
+        ssl_options["ca_certs"] = certifi.where()
+    except ImportError:
+        print("certifi not available; using platform default CA store for websocket probe")
+
+    ws = websocket.WebSocket(sslopt=ssl_options)
     ws.settimeout(timeout)
-    ws.connect(url, header=[f"Authorization: Bearer {key}", "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe"])
+    ws.connect(
+        url,
+        header=[f"Authorization: Bearer {key}", "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe"],
+    )
 
     try:
         if mode == "translation":
             ws.send(json.dumps({"type": "session.update", "session": {"audio": {"output": {"language": target}}}}))
+            ready_seen = wait_for_session_updated(ws, timeout)
+            if not ready_seen:
+                print("translation audio probe failed before session.updated")
+                return 1
             ws.send(json.dumps({"type": "session.input_audio_buffer.append", "audio": base64.b64encode(pcm).decode("ascii")}))
             wanted = {"session.output_transcript.delta", "session.input_transcript.delta", "session.output_audio.delta"}
         elif mode == "transcription":
@@ -221,6 +250,10 @@ def websocket_audio_probe(mode: str, key: str, audio_path: Path, target: str, ti
                     }
                 )
             )
+            ready_seen = wait_for_session_updated(ws, timeout)
+            if not ready_seen:
+                print("transcription audio probe failed before session.updated")
+                return 1
             ws.send(json.dumps({"type": "input_audio_buffer.append", "audio": base64.b64encode(pcm).decode("ascii")}))
             ws.send(json.dumps({"type": "input_audio_buffer.commit"}))
             wanted = {
@@ -237,18 +270,40 @@ def websocket_audio_probe(mode: str, key: str, audio_path: Path, target: str, ti
         while time.time() < deadline:
             try:
                 event = json.loads(ws.recv())
-            except TimeoutError:
+            except Exception as exc:
+                if exc.__class__.__name__ != "WebSocketTimeoutException":
+                    print(f"{mode} audio probe receive failed: {exc.__class__.__name__}")
                 break
             event_type = event.get("type", "")
             seen.append(event_type)
             if event_type in wanted:
-                text = event.get("delta") or event.get("transcript") or "<audio delta>"
-                print(f"{mode} audio probe event: {event_type} {str(text)[:120]}")
+                if show_text:
+                    text = event.get("delta") or event.get("transcript") or "<audio delta>"
+                    print(f"{mode} audio probe event: {event_type} {str(text)[:120]}")
+                else:
+                    print(f"{mode} audio probe event: {event_type}")
                 return 0
         print(f"{mode} audio probe timed out; events seen: {', '.join(seen[-8:]) or 'none'}")
         return 1
     finally:
         ws.close()
+
+
+def wait_for_session_updated(ws: Any, timeout: float) -> bool:
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            event = json.loads(ws.recv())
+        except Exception:
+            return False
+        event_type = event.get("type", "")
+        if event_type == "session.updated":
+            return True
+        if event_type == "error":
+            message = event.get("error", {}).get("message") or "OpenAI realtime session error"
+            print(f"session update error: {message}")
+            return False
+    return False
 
 
 def command_probe(args: argparse.Namespace) -> int:
@@ -263,13 +318,16 @@ def command_probe(args: argparse.Namespace) -> int:
     if not audio_path.exists():
         print(f"audio file not found: {audio_path}")
         return 2
-    return websocket_audio_probe(mode, key, audio_path, args.target, args.timeout)
+    if not args.i_understand_audio_is_sent_to_openai:
+        print("Refusing audio probe without --i-understand-audio-is-sent-to-openai. Use only non-private fixtures.")
+        return 2
+    return websocket_audio_probe(mode, key, audio_path, args.target, args.timeout, args.show_text)
 
 
 SWIFT_SERVICE_TEMPLATE = """// OpenAI Realtime service scaffold.
 // Keep protocol parsing here, not in AppState.
 final class OpenAIRealtimeTranscriptionService {
-    // 1. Connect: wss://api.openai.com/v1/realtime?model=gpt-realtime-whisper
+    // 1. Connect: wss://api.openai.com/v1/realtime?intent=transcription
     // 2. Send session.update with type=transcription and 24 kHz PCM input format.
     // 3. Send input_audio_buffer.append and optional input_audio_buffer.commit.
     // 4. Emit app-level partial/final events keyed by item_id.
@@ -312,6 +370,8 @@ def build_parser() -> argparse.ArgumentParser:
     probe = sub.add_parser("probe", help="Probe model access or an explicit WAV audio file")
     probe.add_argument("--mode", choices=sorted(MODEL_ROUTES), default="transcription")
     probe.add_argument("--audio", help="Optional WAV file. Sends up to 4 seconds, so use non-private fixtures only.")
+    probe.add_argument("--i-understand-audio-is-sent-to-openai", action="store_true")
+    probe.add_argument("--show-text", action="store_true", help="Print transcript snippets from the probe fixture")
     probe.add_argument("--target", default="ja", help="Translation output language code for translation probes")
     probe.add_argument("--timeout", type=float, default=20.0)
     probe.set_defaults(func=command_probe)

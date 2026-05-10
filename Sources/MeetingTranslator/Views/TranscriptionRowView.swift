@@ -43,7 +43,7 @@ struct TranscriptionRowView: View {
                             ProgressView()
                                 .scaleEffect(0.35)
                                 .frame(width: 8, height: 8)
-                            Text("draft")
+                            Text(entry.realtimeItemID == nil ? "draft" : "live")
                                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.orange.opacity(0.7))
                         }

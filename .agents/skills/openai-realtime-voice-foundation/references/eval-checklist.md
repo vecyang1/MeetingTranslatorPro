@@ -7,6 +7,7 @@ Do not claim realtime completion without fresh evidence.
 - `tools/realtime-foundation/realtime-foundation probe --mode transcription`
 - `tools/realtime-foundation/realtime-foundation probe --mode translation`
 - `tools/realtime-foundation/realtime-foundation probe --mode agent`
+- Audio probes require `--i-understand-audio-is-sent-to-openai`; use generated or non-private fixtures only.
 - `./build_app.sh`
 - `/Applications/MeetingTranslator.app` exists and launches
 - Translation off does not start translation sessions

@@ -516,8 +516,7 @@ struct ContentView: View {
             HStack(spacing: 6) {
                 // Toggle translations
                 Button(action: {
-                    appState.showTranslations.toggle()
-                    appState.saveSettings()
+                    appState.setShowTranslations(!appState.showTranslations)
                 }) {
                     Image(systemName: appState.showTranslations ? "text.bubble.fill" : "text.bubble")
                         .font(.system(size: 12))
@@ -567,6 +566,7 @@ struct ContentView: View {
 
     private var engineBadgeColor: Color {
         switch appState.selectedEngine {
+        case .openAIRealtime: return .mint
         case .openAI: return .blue
         case .geminiFlash: return .orange
         case .geminiLive: return .green

@@ -20,7 +20,7 @@ For Meeting Translator Pro, the default shipped path is captions/translation fir
 ## Meeting Translator Invariants
 
 - Do not alter bundle ID, signing identity, entitlements, permission behavior, or `build_app.sh` install path.
-- Never start or maintain a translation session unless `!sameLanguage && showTranslations`.
+- Never start or maintain a translation session unless `!sameLanguage && showTranslations` and translated-audio/live-interpreter mode is enabled.
 - Preserve separate microphone and system-audio source labels.
 - Partial transcript rows update in place by `(source, itemID)`; final rows still pass empty, hallucination, overlap, echo dedup, language, and translation gates.
 - Keep existing OpenAI Whisper+GPT, Gemini Flash, and Gemini Live engines selectable as fallbacks.

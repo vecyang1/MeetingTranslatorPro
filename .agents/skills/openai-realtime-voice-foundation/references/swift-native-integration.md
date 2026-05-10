@@ -10,6 +10,7 @@ Add protocol logic in focused service files:
 - `OpenAIRealtimeTranscriptionService`: transcription WebSocket.
 - `OpenAIRealtimeTranslationService`: translation WebSocket.
 - `OpenAIRealtimeAgentService`: future/dev assistant mode.
+- `OpenAIRealtimeCoordinator`: owns service lifecycle, routing, and reducer state so `AppState` stays orchestration-focused.
 
 ## AppState Role
 
@@ -31,3 +32,11 @@ Add protocol logic in focused service files:
 - Translation audio: `session.output_audio.delta`.
 
 Normalize to app events before touching UI state.
+
+## 2026-05-10 Probe Notes
+
+- Native transcription WebSocket uses `wss://api.openai.com/v1/realtime?intent=transcription`.
+- Do not add `model=gpt-realtime-whisper` to that transcription URL; pass `gpt-realtime-whisper` in `session.update` instead.
+- Mark a session ready only after `session.updated`, then allow audio chunks and cost logging.
+- Treat `*.delta` payloads as incremental text and accumulate by stable item/turn ID.
+- The realtime translation endpoint may emit output transcript/audio deltas without a stable `item_id`; keep a source-local fallback turn ID until a done/completed event.

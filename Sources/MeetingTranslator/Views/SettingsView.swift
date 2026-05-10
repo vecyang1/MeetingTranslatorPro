@@ -150,15 +150,19 @@ struct SettingsView: View {
 
                                     Divider().opacity(0.3)
 
-                                    sliderRow(
-                                        label: "Fast Draft Interval",
-                                        value: $appState.fastInterval,
-                                        range: 2...10,
-                                        step: 1,
-                                        unit: "s",
-                                        hint: "How often to show a quick draft. Shorter = faster display, more API calls.",
-                                        color: .orange
-                                    )
+                                    if appState.selectedEngine == .openAIRealtime {
+                                        realtimeSettings
+                                    } else {
+                                        sliderRow(
+                                            label: "Fast Draft Interval",
+                                            value: $appState.fastInterval,
+                                            range: 2...10,
+                                            step: 1,
+                                            unit: "s",
+                                            hint: "How often to show a quick draft. Shorter = faster display, more API calls.",
+                                            color: .orange
+                                        )
+                                    }
 
                                     if appState.selectedEngine == .openAI {
                                         sliderRow(
@@ -426,6 +430,41 @@ struct SettingsView: View {
         if v <= 0.005 { return "Low (\(String(format: "%.3f", v)))" }
         if v <= 0.015 { return "Med (\(String(format: "%.3f", v)))" }
         return "High (\(String(format: "%.3f", v)))"
+    }
+
+    private var realtimeSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Caption Latency")
+                    .font(.system(size: 12, weight: .medium))
+                Picker("", selection: $appState.realtimeCaptionLatency) {
+                    ForEach(RealtimeCaptionLatencyPreset.allCases) { preset in
+                        Text(preset.rawValue).tag(preset)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Text(appState.realtimeCaptionLatency.description)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            Toggle("Automatic fallback to legacy OpenAI", isOn: $appState.realtimeAutomaticFallback)
+                .font(.system(size: 12, weight: .medium))
+
+            Toggle("Translated audio playback", isOn: $appState.realtimeTranslatedAudioPlayback)
+                .font(.system(size: 12, weight: .medium))
+                .disabled(true)
+
+            HStack(spacing: 6) {
+                Image(systemName: "info.circle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Text("Realtime uses separate source-aware sessions for mic and system audio. Translated audio stays disabled until feedback behavior is proven.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 
     // MARK: - Slider Row

@@ -4,7 +4,7 @@ import Foundation
 struct TranscriptionEntry: Identifiable, Equatable {
     let id: UUID
     let timestamp: Date
-    let originalText: String
+    var originalText: String
     var translatedText: String?
     var detectedLanguage: String?       // ISO code: "en", "zh", "ja", etc.
     var isTranslating: Bool
@@ -12,6 +12,7 @@ struct TranscriptionEntry: Identifiable, Equatable {
     var speakerLabel: String?
     var isDraft: Bool                   // true = fast-track draft, will be replaced by stitch pass
     var isQualityResult: Bool           // true = stitch/quality pass result (final)
+    var realtimeItemID: String?         // Provider item id for partial/final realtime reconciliation
 
     enum AudioSource: String, Equatable {
         case microphone = "Mic"
@@ -28,7 +29,8 @@ struct TranscriptionEntry: Identifiable, Equatable {
         source: AudioSource = .microphone,
         speakerLabel: String? = nil,
         isDraft: Bool = false,
-        isQualityResult: Bool = false
+        isQualityResult: Bool = false,
+        realtimeItemID: String? = nil
     ) {
         self.id = id
         self.timestamp = timestamp
@@ -40,6 +42,7 @@ struct TranscriptionEntry: Identifiable, Equatable {
         self.speakerLabel = speakerLabel
         self.isDraft = isDraft
         self.isQualityResult = isQualityResult
+        self.realtimeItemID = realtimeItemID
     }
 
     /// Get the full language name from ISO code

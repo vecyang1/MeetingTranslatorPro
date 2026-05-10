@@ -21,6 +21,12 @@ final class AppState: ObservableObject {
     @Published var selectedEngine: TranscriptionEngine = .openAI
     @Published var showTranslations: Bool = true
     @Published var isGeminiLiveConnected: Bool = false
+    @Published var realtimeCaptionLatency: RealtimeCaptionLatencyPreset = .balanced
+    @Published var realtimeReasoningEffort: RealtimeReasoningEffort = .low
+    @Published var realtimeTranslatedAudioPlayback: Bool = false
+    @Published var realtimeAutomaticFallback: Bool = true
+    @Published var openAIRealtimeState: RealtimeSessionState = .disconnected
+    @Published var activeRealtimeMode: RealtimeRouteMode?
 
     // MARK: - Recording Timer
     @Published var recordingElapsedSeconds: Int = 0
@@ -46,6 +52,7 @@ final class AppState: ObservableObject {
     private var translationService: TranslationService
     private var geminiFlashService: GeminiFlashService
     private var geminiLiveService: GeminiLiveService
+    private let realtimeCoordinator = OpenAIRealtimeCoordinator()
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Pipeline Buffers
@@ -97,6 +104,10 @@ final class AppState: ObservableObject {
     private let geminiQualityIntervalKey = "com.meetingtranslator.geminiquality"
     private let noiseGateKey = "com.meetingtranslator.noisegate"
     private let inputLanguagesKey = "com.meetingtranslator.inputlanguages"
+    private let realtimeCaptionLatencyKey = "com.meetingtranslator.realtime.captionlatency"
+    private let realtimeReasoningEffortKey = "com.meetingtranslator.realtime.reasoningeffort"
+    private let realtimeTranslatedAudioPlaybackKey = "com.meetingtranslator.realtime.translatedaudioplayback"
+    private let realtimeAutomaticFallbackKey = "com.meetingtranslator.realtime.automaticfallback"
 
     // MARK: - Hallucination Detection
 
@@ -232,7 +243,7 @@ final class AppState: ObservableObject {
     /// Check if a new transcription text is a near-duplicate of any recent entry.
     /// Uses character-level bigram similarity (Dice coefficient) which is fast and language-agnostic.
     /// Returns true if the text should be dropped as an echo duplicate.
-    private func isDuplicateOfRecent(_ text: String, within window: TimeInterval? = nil) -> Bool {
+    private func isDuplicateOfRecent(_ text: String, within window: TimeInterval? = nil, excluding entryID: UUID? = nil) -> Bool {
         let lookback = window ?? echoDedupWindowSeconds
         let cutoff = Date().addingTimeInterval(-lookback)
         let normalizedNew = text.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -243,6 +254,7 @@ final class AppState: ObservableObject {
 
         // Check recent entries (walk backwards for efficiency)
         for entry in entries.reversed() {
+            if let entryID, entry.id == entryID { continue }
             // Stop once we're outside the time window
             if entry.timestamp < cutoff { break }
 
@@ -351,6 +363,10 @@ final class AppState: ObservableObject {
         let savedNoiseGate = UserDefaults.standard.object(forKey: noiseGateKey) as? Double ?? 0.003
         let savedInputLangs = UserDefaults.standard.stringArray(forKey: inputLanguagesKey) ?? []
         let restoredInputLangs = Set(savedInputLangs.compactMap { SupportedLanguage(rawValue: $0) })
+        let savedRealtimeLatency = UserDefaults.standard.string(forKey: realtimeCaptionLatencyKey) ?? RealtimeCaptionLatencyPreset.balanced.rawValue
+        let savedRealtimeReasoning = UserDefaults.standard.string(forKey: realtimeReasoningEffortKey) ?? RealtimeReasoningEffort.low.rawValue
+        let savedRealtimeAudioPlayback = UserDefaults.standard.object(forKey: realtimeTranslatedAudioPlaybackKey) as? Bool ?? false
+        let savedRealtimeFallback = UserDefaults.standard.object(forKey: realtimeAutomaticFallbackKey) as? Bool ?? true
 
         self.apiKey = savedKey
         self.googleAPIKey = savedGoogleKey
@@ -362,6 +378,10 @@ final class AppState: ObservableObject {
         self.geminiQualityInterval = savedGeminiQuality
         self.noiseGateThreshold = savedNoiseGate
         self.inputLanguages = restoredInputLangs
+        self.realtimeCaptionLatency = RealtimeCaptionLatencyPreset(rawValue: savedRealtimeLatency) ?? .balanced
+        self.realtimeReasoningEffort = RealtimeReasoningEffort(rawValue: savedRealtimeReasoning) ?? .low
+        self.realtimeTranslatedAudioPlayback = savedRealtimeAudioPlayback
+        self.realtimeAutomaticFallback = savedRealtimeFallback
         self.whisperService = WhisperService(apiKey: savedKey)
         self.translationService = TranslationService(apiKey: savedKey)
         self.geminiFlashService = GeminiFlashService(apiKey: savedGoogleKey)
@@ -369,6 +389,7 @@ final class AppState: ObservableObject {
 
         setupBindings()
         setupGeminiLiveCallbacks()
+        setupOpenAIRealtimeCallbacks()
     }
 
     private func setupBindings() {
@@ -393,8 +414,18 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func setupOpenAIRealtimeCallbacks() {
+        realtimeCoordinator.onEvent = { [weak self] event in
+            Task { @MainActor [weak self] in
+                await self?.handleOpenAIRealtimeEvent(event)
+            }
+        }
+    }
+
     private func routeAudioChunk(_ data: Data, source: TranscriptionEntry.AudioSource) {
         switch selectedEngine {
+        case .openAIRealtime:
+            routeRealtimeAudioChunk(data, source: source)
         case .geminiLive:
             if isGeminiLiveConnected {
                 geminiLiveService.sendAudio(data)
@@ -479,6 +510,285 @@ final class AppState: ObservableObject {
         }
     }
 
+    // MARK: - OpenAI Realtime
+
+    private func startOpenAIRealtimeSessions() async {
+        stopOpenAIRealtimeSessions()
+
+        let sources = activeAudioSources()
+        guard !sources.isEmpty else {
+            showError("Enable at least one audio source.")
+            return
+        }
+
+        let sameLanguage = specifiedInputMatchesTarget()
+        openAIRealtimeState = .connecting
+        statusMessage = "Connecting OpenAI Realtime..."
+
+        do {
+            let decision = try await realtimeCoordinator.start(
+                apiKey: apiKey,
+                sources: sources,
+                showTranslations: shouldUseRealtimeTranslationSession(sameLanguage: sameLanguage),
+                sameLanguage: sameLanguage,
+                targetLanguageCode: targetLanguage.isoCode,
+                languageHint: inputLanguages.count == 1 ? inputLanguages.first?.isoCode : nil,
+                latencyPreset: realtimeCaptionLatency,
+                reasoningEffort: realtimeReasoningEffort
+            )
+            activeRealtimeMode = decision.mode
+            if isRecording {
+                statusMessage = "Waiting for realtime session..."
+            }
+        } catch {
+            showError("OpenAI Realtime unavailable. \(error.localizedDescription.prefix(60))")
+            if realtimeAutomaticFallback {
+                activateLegacyOpenAIFallback()
+            }
+            return
+        }
+    }
+
+    private func stopOpenAIRealtimeSessions() {
+        realtimeCoordinator.stop()
+        activeRealtimeMode = nil
+        openAIRealtimeState = .disconnected
+    }
+
+    private func routeRealtimeAudioChunk(_ data: Data, source: TranscriptionEntry.AudioSource) {
+        guard hasEnoughEnergy(data) else { return }
+        _ = realtimeCoordinator.sendAudio(data, source: source)
+    }
+
+    private func handleOpenAIRealtimeEvent(_ event: RealtimeAppEvent) async {
+        switch event {
+        case .sessionStateChanged(_, let state):
+            openAIRealtimeState = state
+            if isRecording { statusMessage = state.userMessage }
+        case .recoverableError(_, let message, _):
+            showError(message)
+            if realtimeAutomaticFallback {
+                activateLegacyOpenAIFallback()
+            }
+        case .audioQueued(_, let mode, let audioDuration):
+            switch mode {
+            case .transcription:
+                costTracker.logOpenAIRealtimeWhisper(audioDurationSeconds: audioDuration)
+            case .translation:
+                costTracker.logOpenAIRealtimeTranslate(audioDurationSeconds: audioDuration)
+            case .agent:
+                costTracker.logOpenAIRealtimeAgent(audioDurationSeconds: audioDuration, inputTokens: 0, outputTokens: 0)
+            }
+        case .usageUpdated(_, let mode, let audioDuration, let inputTokens, let outputTokens):
+            switch mode {
+            case .transcription:
+                costTracker.logOpenAIRealtimeWhisper(audioDurationSeconds: audioDuration)
+            case .translation:
+                costTracker.logOpenAIRealtimeTranslate(audioDurationSeconds: audioDuration)
+            case .agent:
+                costTracker.logOpenAIRealtimeAgent(audioDurationSeconds: audioDuration, inputTokens: inputTokens, outputTokens: outputTokens)
+            }
+        case .translatedAudioChunk:
+            // Text-first release: translated audio playback stays off by default.
+            break
+        case .partialTranscript, .finalTranscript, .partialTranslation, .finalTranslation:
+            guard let reduced = realtimeCoordinator.reduce(event) else { return }
+            if reduced.isFinal {
+                await confirmRealtimeEntry(reduced)
+            } else {
+                upsertRealtimePartial(reduced)
+            }
+        }
+    }
+
+    private func upsertRealtimePartial(_ reduced: RealtimeReducedEntry) {
+        if reduced.isTranslationOnly {
+            let text = (reduced.translatedText ?? reduced.text).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return }
+            if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+                if entries[idx].detectedLanguage == targetLanguage.isoCode && entries[idx].translatedText == nil {
+                    entries[idx].originalText = text
+                } else {
+                    entries[idx].translatedText = text
+                }
+                entries[idx].isTranslating = false
+                entries[idx].isDraft = true
+            } else {
+                let entry = TranscriptionEntry(
+                    timestamp: reduced.timestamp,
+                    originalText: text,
+                    translatedText: nil,
+                    detectedLanguage: targetLanguage.isoCode,
+                    isTranslating: false,
+                    source: reduced.source,
+                    speakerLabel: buildSpeakerLabel(source: reduced.source, language: targetLanguage.isoCode),
+                    isDraft: true,
+                    realtimeItemID: reduced.itemID
+                )
+                insertEntryChronologically(entry)
+                trimEntriesIfNeeded()
+            }
+            return
+        }
+
+        let text = reduced.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+
+        if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+            entries[idx].originalText = text
+            entries[idx].translatedText = reduced.translatedText ?? entries[idx].translatedText
+            entries[idx].detectedLanguage = reduced.language ?? entries[idx].detectedLanguage
+            entries[idx].isDraft = true
+            return
+        }
+
+        let detected = reduced.language ?? detectLanguageFromText(text)
+        let sameLanguage = isSameLanguage(detected: detected, target: targetLanguage)
+        let entry = TranscriptionEntry(
+            timestamp: reduced.timestamp,
+            originalText: text,
+            translatedText: reduced.translatedText,
+            detectedLanguage: detected,
+            isTranslating: showTranslations && !sameLanguage && activeRealtimeMode == .translation,
+            source: reduced.source,
+            speakerLabel: buildSpeakerLabel(source: reduced.source, language: detected),
+            isDraft: true,
+            realtimeItemID: reduced.itemID
+        )
+        insertEntryChronologically(entry)
+        trimEntriesIfNeeded()
+    }
+
+    private func confirmRealtimeEntry(_ reduced: RealtimeReducedEntry) async {
+        if reduced.isTranslationOnly {
+            let text = (reduced.translatedText ?? reduced.text).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else {
+                removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+                return
+            }
+            if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+                if entries[idx].detectedLanguage == targetLanguage.isoCode && entries[idx].translatedText == nil {
+                    entries[idx].originalText = text
+                } else {
+                    entries[idx].translatedText = text
+                }
+                entries[idx].isTranslating = false
+                entries[idx].isDraft = false
+            } else {
+                let entry = TranscriptionEntry(
+                    timestamp: reduced.timestamp,
+                    originalText: text,
+                    translatedText: nil,
+                    detectedLanguage: targetLanguage.isoCode,
+                    isTranslating: false,
+                    source: reduced.source,
+                    speakerLabel: buildSpeakerLabel(source: reduced.source, language: targetLanguage.isoCode),
+                    isDraft: false,
+                    realtimeItemID: reduced.itemID
+                )
+                insertEntryChronologically(entry)
+            }
+            lastConfirmedTranslation = text
+            trimEntriesIfNeeded()
+            return
+        }
+
+        var text = reduced.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, !isHallucination(text) else {
+            removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+            return
+        }
+
+        if !lastConfirmedText.isEmpty {
+            text = removeDuplicatePrefix(newText: text, previousText: lastConfirmedText)
+            guard !text.isEmpty else {
+                removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+                return
+            }
+        }
+
+        let existingID = entries.first(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source })?.id
+        guard !isDuplicateOfRecent(text, excluding: existingID) else {
+            removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+            return
+        }
+
+        let detected = reduced.language ?? detectLanguageFromText(text)
+        let sameLanguage = isSameLanguage(detected: detected, target: targetLanguage)
+        var translated = sameLanguage || !showTranslations ? nil : reduced.translatedText
+        if translated == nil && showTranslations && !sameLanguage && activeRealtimeMode != .translation {
+            do {
+                statusMessage = "Translating..."
+                translated = try await translationService.translate(text: text, to: targetLanguage.rawValue)
+            } catch {
+                showError("Translation failed: \(error.localizedDescription.prefix(60))")
+            }
+        }
+
+        if let idx = entries.firstIndex(where: { $0.realtimeItemID == reduced.itemID && $0.source == reduced.source }) {
+            entries[idx].originalText = text
+            entries[idx].translatedText = translated
+            entries[idx].detectedLanguage = detected
+            entries[idx].isTranslating = activeRealtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
+            entries[idx].speakerLabel = buildSpeakerLabel(source: reduced.source, language: detected)
+            entries[idx].isDraft = false
+            entries[idx].isQualityResult = false
+        } else {
+            let entry = TranscriptionEntry(
+                timestamp: reduced.timestamp,
+                originalText: text,
+                translatedText: translated,
+                detectedLanguage: detected,
+                isTranslating: activeRealtimeMode == .translation && translated == nil && showTranslations && !sameLanguage,
+                source: reduced.source,
+                speakerLabel: buildSpeakerLabel(source: reduced.source, language: detected),
+                isDraft: false,
+                realtimeItemID: reduced.itemID
+            )
+            insertEntryChronologically(entry)
+        }
+
+        lastConfirmedText = text
+        lastConfirmedTranslation = translated
+        lastConfirmedLanguage = detected
+        markProcessingSuccess()
+        trimEntriesIfNeeded()
+        if isRecording { statusMessage = openAIRealtimeState.userMessage }
+    }
+
+    private func removeRealtimeEntry(itemID: String, source: TranscriptionEntry.AudioSource) {
+        entries.removeAll { $0.realtimeItemID == itemID && $0.source == source }
+    }
+
+    private func activeAudioSources() -> [TranscriptionEntry.AudioSource] {
+        var sources: [TranscriptionEntry.AudioSource] = []
+        if isMicEnabled { sources.append(.microphone) }
+        if isSystemAudioEnabled { sources.append(.system) }
+        return sources
+    }
+
+    private func specifiedInputMatchesTarget() -> Bool {
+        guard inputLanguages.count == 1, let input = inputLanguages.first else { return false }
+        return isSameLanguage(detected: input.isoCode, target: targetLanguage)
+    }
+
+    private func shouldUseRealtimeTranslationSession(sameLanguage: Bool) -> Bool {
+        showTranslations && !sameLanguage && inputLanguages.count == 1 && realtimeTranslatedAudioPlayback
+    }
+
+    private func activateLegacyOpenAIFallback() {
+        guard selectedEngine == .openAIRealtime, realtimeAutomaticFallback else { return }
+        stopOpenAIRealtimeSessions()
+        stopPipelineTimers()
+        selectedEngine = .openAI
+        fastBuffer = Data()
+        stitchBuffer = Data()
+        statusMessage = "Switched to legacy OpenAI fallback"
+        if isRecording {
+            startPipelineTimers()
+        }
+    }
+
     // MARK: - Public Actions
 
     func checkPermissions() {
@@ -499,11 +809,37 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(geminiQualityInterval, forKey: geminiQualityIntervalKey)
         UserDefaults.standard.set(noiseGateThreshold, forKey: noiseGateKey)
         UserDefaults.standard.set(inputLanguages.map { $0.rawValue }, forKey: inputLanguagesKey)
+        UserDefaults.standard.set(realtimeCaptionLatency.rawValue, forKey: realtimeCaptionLatencyKey)
+        UserDefaults.standard.set(realtimeReasoningEffort.rawValue, forKey: realtimeReasoningEffortKey)
+        UserDefaults.standard.set(realtimeTranslatedAudioPlayback, forKey: realtimeTranslatedAudioPlaybackKey)
+        UserDefaults.standard.set(realtimeAutomaticFallback, forKey: realtimeAutomaticFallbackKey)
         whisperService.updateAPIKey(apiKey)
         translationService.updateAPIKey(apiKey)
         geminiFlashService.updateAPIKey(googleAPIKey)
         geminiLiveService.updateAPIKey(googleAPIKey)
         geminiLiveService.updateTargetLanguage(targetLanguage.rawValue, isoCode: targetLanguage.isoCode)
+        realtimeCoordinator.updateAPIKey(apiKey)
+        if selectedEngine == .openAIRealtime,
+           activeRealtimeMode == .translation,
+           !shouldUseRealtimeTranslationSession(sameLanguage: specifiedInputMatchesTarget()) {
+            stopOpenAIRealtimeSessions()
+        }
+        Task { await refreshOpenAIRealtimeRoutingIfNeeded() }
+    }
+
+    func setShowTranslations(_ enabled: Bool) {
+        guard showTranslations != enabled else { return }
+        showTranslations = enabled
+        if selectedEngine == .openAIRealtime && activeRealtimeMode == .translation {
+            stopOpenAIRealtimeSessions()
+            statusMessage = enabled ? "Restarting realtime translation..." : "Translation off"
+        }
+        saveSettings()
+    }
+
+    private func refreshOpenAIRealtimeRoutingIfNeeded() async {
+        guard isRecording, selectedEngine == .openAIRealtime else { return }
+        await startOpenAIRealtimeSessions()
     }
 
     func toggleRecording() {
@@ -536,6 +872,10 @@ final class AppState: ObservableObject {
                 } catch {
                     showError("Gemini Live connection failed: \(error.localizedDescription.prefix(60))")
                 }
+            }
+        } else if selectedEngine == .openAIRealtime {
+            Task {
+                await startOpenAIRealtimeSessions()
             }
         }
 
@@ -578,6 +918,7 @@ final class AppState: ObservableObject {
         stopPipelineTimers()
 
         if selectedEngine == .geminiLive { geminiLiveService.disconnect() }
+        if selectedEngine == .openAIRealtime { stopOpenAIRealtimeSessions() }
 
         isRecording = false
         stopRecordingTimer()
@@ -613,6 +954,7 @@ final class AppState: ObservableObject {
 
     /// Promote all remaining draft entries to confirmed (remove draft badge)
     private func finalizeDraftEntries() {
+        entries.removeAll { $0.isDraft && $0.realtimeItemID != nil }
         for i in entries.indices where entries[i].isDraft {
             entries[i].isDraft = false
         }
@@ -695,6 +1037,8 @@ final class AppState: ObservableObject {
     }
 
     private func startPipelineTimers() {
+        stopPipelineTimers()
+
         // Layer 1: Fast draft
         fastTimer = Task { [weak self] in
             while !Task.isCancelled {
@@ -706,6 +1050,8 @@ final class AppState: ObservableObject {
         }
 
         switch selectedEngine {
+        case .openAIRealtime:
+            break
         case .openAI:
             stitchTimer = Task { [weak self] in
                 guard let self = self else { return }
@@ -754,6 +1100,8 @@ final class AppState: ObservableObject {
         let source: TranscriptionEntry.AudioSource = isMicEnabled ? .microphone : .system
 
         switch selectedEngine {
+        case .openAIRealtime:
+            break
         case .openAI:
             await processOpenAIFast(audio: audioWithOverlap, rawChunk: capturedBuffer, source: source)
         case .geminiFlash:

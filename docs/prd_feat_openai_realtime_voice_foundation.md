@@ -1,11 +1,34 @@
 # PRD: OpenAI Realtime Voice Foundation for Meeting Translator Pro
 
-**Version:** 0.1 draft
+**Version:** 0.2 implementation checkpoint
 **Date:** 2026-05-10
-**Status:** Draft, PRD-only
+**Status:** M0-M4 implemented with safe synthetic runtime proof; private live mic/system checks deferred
 **Primary app:** Meeting Translator Pro
 **Input brief:** `../../input/2026-5-10 9-39-34-Realtime_Voice_Skill_Build.md`
 **Parent docs:** `docs/PRD.md`, `docs/API.md`, `AGENTS.md`
+
+---
+
+## 0. Implementation Status - 2026-05-10
+
+Completed:
+
+- **M0:** Model access probed with the configured OpenAI key. `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` all returned HTTP 200. A narrow GitNexus app index was refreshed, with the caveat that this local GitNexus install cannot parse Swift symbols.
+- **M1:** Reusable skill and CLI foundation created and discoverable through `.agents/skills`, `.claude/skills`, and `.gemini/antigravity/skills`.
+- **M2:** Native Swift realtime services, router, coordinator, reducer, and 16 kHz to 24 kHz PCM boundary implemented without changing existing capture format.
+- **M3:** UI exposes `OpenAI Realtime (Recommended)`, realtime partial rows, caption latency settings, automatic fallback state, and translation-off rerouting.
+- **M4:** Build/sign/install passed; synthetic OpenAI realtime transcription and translation WebSocket probes passed; docs updated.
+
+Safety notes:
+
+- Realtime translation sessions start only when translations are visible, the input language is explicitly pinned to a different target language, and translated-audio playback is enabled.
+- Auto-detect and text-only translation start with realtime transcription and may translate final non-same text through the existing gated GPT text translation path.
+- Audio probes require an explicit CLI consent flag and should use synthetic or non-private fixtures.
+- Private live microphone/system-audio verification was not performed while the user was asleep; synthetic audio probes were used instead.
+
+Known follow-up:
+
+- Implement a true reconnect/retry loop before depending on realtime during unreliable networks. Current behavior surfaces the failure and uses automatic legacy OpenAI fallback when enabled.
 
 ---
 

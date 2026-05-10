@@ -39,6 +39,14 @@ final class CostTracker: ObservableObject {
     private let geminiLiveOutputPer1M: Double = 0.80
     private let geminiLiveAudioTokensPerSecond: Double = 32.0
 
+    // OpenAI realtime models (as researched 2026-05-10)
+    private let realtimeWhisperPricePerMinute: Double = 0.017
+    private let realtimeTranslatePricePerMinute: Double = 0.034
+    private let realtime2TextInputPer1M: Double = 4.00
+    private let realtime2TextOutputPer1M: Double = 24.00
+    private let realtime2AudioInputPer1M: Double = 32.00
+    private let realtime2AudioOutputPer1M: Double = 64.00
+
     private let persistKey = "com.meetingtranslator.totalcost"
 
     init() {
@@ -85,6 +93,27 @@ final class CostTracker: ObservableObject {
         let cost = (Double(inputTokens) / 1_000_000.0) * geminiLiveInputPer1M
                  + (Double(outputTokens) / 1_000_000.0) * geminiLiveOutputPer1M
         addEntry(engine: "Gemini 3.1 Flash Live", operation: "Stream Transcribe+Translate",
+                 audioDuration: audioDurationSeconds, inputTokens: inputTokens, outputTokens: outputTokens, cost: cost)
+    }
+
+    func logOpenAIRealtimeWhisper(audioDurationSeconds: Double) {
+        let cost = (audioDurationSeconds / 60.0) * realtimeWhisperPricePerMinute
+        addEntry(engine: "OpenAI Realtime Whisper", operation: "Stream Transcription",
+                 audioDuration: audioDurationSeconds, inputTokens: 0, outputTokens: 0, cost: cost)
+    }
+
+    func logOpenAIRealtimeTranslate(audioDurationSeconds: Double) {
+        let cost = (audioDurationSeconds / 60.0) * realtimeTranslatePricePerMinute
+        addEntry(engine: "OpenAI Realtime Translate", operation: "Stream Translation",
+                 audioDuration: audioDurationSeconds, inputTokens: 0, outputTokens: 0, cost: cost)
+    }
+
+    func logOpenAIRealtimeAgent(audioDurationSeconds: Double, inputTokens: Int, outputTokens: Int) {
+        let audioTokens = Int(audioDurationSeconds * 50.0)
+        let cost = (Double(inputTokens) / 1_000_000.0) * realtime2TextInputPer1M
+                 + (Double(outputTokens) / 1_000_000.0) * realtime2TextOutputPer1M
+                 + (Double(audioTokens) / 1_000_000.0) * realtime2AudioInputPer1M
+        addEntry(engine: "OpenAI Realtime 2", operation: "Voice Agent",
                  audioDuration: audioDurationSeconds, inputTokens: inputTokens, outputTokens: outputTokens, cost: cost)
     }
 

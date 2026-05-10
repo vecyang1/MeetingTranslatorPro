@@ -2,6 +2,7 @@ import Foundation
 
 /// Transcription engine options
 enum TranscriptionEngine: String, CaseIterable, Identifiable {
+    case openAIRealtime = "OpenAI Realtime (Recommended)"
     case openAI = "OpenAI Whisper + GPT"
     case geminiFlash = "Gemini 2.5 Flash"
     case geminiLive = "Gemini 3.1 Flash Live"
@@ -10,6 +11,7 @@ enum TranscriptionEngine: String, CaseIterable, Identifiable {
 
     var shortName: String {
         switch self {
+        case .openAIRealtime: return "Realtime"
         case .openAI: return "OpenAI"
         case .geminiFlash: return "Gemini Flash"
         case .geminiLive: return "Gemini Live"
@@ -18,6 +20,7 @@ enum TranscriptionEngine: String, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
+        case .openAIRealtime: return "Live OpenAI sessions for low-latency captions and translation. Best future path for meetings."
         case .openAI: return "Two-step: Whisper transcription + GPT-4o-mini translation. Most accurate but slower (~10-15s)."
         case .geminiFlash: return "Single API call for transcription + translation. Good balance of speed and accuracy (~3-5s)."
         case .geminiLive: return "Real-time WebSocket streaming. Lowest latency, sub-second response. Best for live meetings."
@@ -26,14 +29,14 @@ enum TranscriptionEngine: String, CaseIterable, Identifiable {
 
     var requiresGoogleKey: Bool {
         switch self {
-        case .openAI: return false
+        case .openAIRealtime, .openAI: return false
         case .geminiFlash, .geminiLive: return true
         }
     }
 
     var requiresOpenAIKey: Bool {
         switch self {
-        case .openAI: return true
+        case .openAIRealtime, .openAI: return true
         case .geminiFlash, .geminiLive: return false
         }
     }

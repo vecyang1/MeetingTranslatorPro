@@ -41,12 +41,12 @@
 - Create: `tools/realtime-foundation/realtime_foundation.py`
 - Create: `tools/realtime-foundation/realtime-foundation`
 
-- [ ] Write CLI tests by running `realtime_foundation.py models`, `recommend`, and `scaffold --target swift-service --dry-run` before the full implementation exists; expected failure is missing file/command.
-- [ ] Implement deterministic CLI commands: `models`, `recommend`, `probe`, and `scaffold`.
-- [ ] Use no-audio-spend model probes by default; require an explicit audio file for audio probes.
-- [ ] Write concise skill docs that route `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` by outcome.
-- [ ] Symlink skill into `/Users/vecsatfoxmailcom/.claude/skills` and `/Users/vecsatfoxmailcom/.gemini/antigravity/skills` if those roots exist and the target path is absent or already a matching symlink.
-- [ ] Validate `SKILL.md` frontmatter, CLI help, model recommendation output, and model access probe.
+- [x] Write CLI tests by running `realtime_foundation.py models`, `recommend`, and `scaffold --target swift-service --dry-run` before the full implementation exists; expected failure is missing file/command.
+- [x] Implement deterministic CLI commands: `models`, `recommend`, `probe`, and `scaffold`.
+- [x] Use no-audio-spend model probes by default; require an explicit audio file for audio probes.
+- [x] Write concise skill docs that route `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` by outcome.
+- [x] Symlink skill into `/Users/vecsatfoxmailcom/.claude/skills` and `/Users/vecsatfoxmailcom/.gemini/antigravity/skills` if those roots exist and the target path is absent or already a matching symlink.
+- [x] Validate `SKILL.md` frontmatter, CLI help, model recommendation output, and model access probe.
 
 ## Task 2: Swift Realtime Core
 
@@ -60,11 +60,11 @@
 - Create: `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift`
 - Modify: `build_app.sh`
 
-- [ ] Add testable pure Swift router and reducer APIs before connecting them to `AppState`.
-- [ ] Run a compile expecting missing integration references before wiring into the app.
-- [ ] Implement WebSocket session setup, event parsing, bounded reconnect state, and usage events in services.
-- [ ] Keep audio resampling as an explicit boundary; existing 16 kHz capture remains unchanged.
-- [ ] Run `./build_app.sh` and fix compile errors.
+- [x] Add testable pure Swift router and reducer APIs before connecting them to `AppState`.
+- [x] Run a compile expecting missing integration references before wiring into the app.
+- [x] Implement WebSocket session setup, event parsing, ready-state handling, and fallback state in services.
+- [x] Keep audio resampling as an explicit boundary; existing 16 kHz capture remains unchanged.
+- [x] Run `./build_app.sh` and fix compile errors.
 
 ## Task 3: AppState and UI Integration
 
@@ -77,13 +77,13 @@
 - Modify: `Sources/MeetingTranslator/Views/SettingsView.swift`
 - Modify: `Sources/MeetingTranslator/Views/TranscriptionRowView.swift`
 
-- [ ] Add `OpenAI Realtime (Recommended)` engine without removing existing engines.
-- [ ] Add persisted realtime settings using new keys only.
-- [ ] Route realtime audio chunks to separate source-aware sessions.
-- [ ] Add partial row reconciliation by `(source, itemID)` and final confirmation through existing empty, hallucination, dedup, language, and translation gates.
-- [ ] Ensure translation sessions start only when `!sameLanguage && showTranslations`.
-- [ ] Show friendly connection, fallback, and recoverable error states.
-- [ ] Run `./build_app.sh`.
+- [x] Add `OpenAI Realtime (Recommended)` engine without removing existing engines.
+- [x] Add persisted realtime settings using new keys only.
+- [x] Route realtime audio chunks to separate source-aware sessions.
+- [x] Add partial row reconciliation by `(source, itemID)` and final confirmation through existing empty, hallucination, dedup, language, and translation gates.
+- [x] Ensure translation sessions start only when `!sameLanguage && showTranslations`.
+- [x] Show friendly connection, fallback, and recoverable error states.
+- [x] Run `./build_app.sh`.
 
 ## Task 4: Verification and Documentation
 
@@ -94,10 +94,23 @@
 - Create or modify: `CHANGELOG.md`
 - Modify: `docs/prd_feat_openai_realtime_voice_foundation.md`
 
-- [ ] Run CLI no-audio model probe and any available synthetic audio probe.
-- [ ] Run `./build_app.sh` and verify `/Applications/MeetingTranslator.app` exists.
-- [ ] Launch the app, inspect process state, and capture the strongest safe UI/runtime proof.
-- [ ] If private live mic/system verification is unsafe while the user is asleep, record exactly what was skipped and why.
-- [ ] Update docs with realtime services, settings, costs, invariants, and remaining risks.
+- [x] Run CLI no-audio model probe and any available synthetic audio probe.
+- [x] Run `./build_app.sh` and verify `/Applications/MeetingTranslator.app` exists.
+- [x] Launch the app, inspect process state, and capture the strongest safe UI/runtime proof.
+- [x] If private live mic/system verification is unsafe while the user is asleep, record exactly what was skipped and why.
+- [x] Update docs with realtime services, settings, costs, invariants, and remaining risks.
 - [ ] Run GitNexus `detect_changes` and code review agents.
 - [ ] Commit coherent milestones with clear messages.
+
+## Verification Log
+
+- `swiftc ... realtime_core_smoke.swift -o /tmp/realtime_core_smoke && /tmp/realtime_core_smoke` -> `realtime core smoke ok`.
+- `./build_app.sh` -> exited 0, signed with existing Apple Development certificate, installed `/Applications/MeetingTranslator.app`.
+- `tools/realtime-foundation/realtime-foundation probe --mode transcription` -> model visible.
+- `tools/realtime-foundation/realtime-foundation probe --mode translation` -> model visible.
+- `tools/realtime-foundation/realtime-foundation probe --mode agent` -> model visible.
+- Synthetic fixture `/tmp/mtp_realtime_probe.wav` from macOS `say` sent with explicit consent flag:
+  - transcription audio probe saw `conversation.item.input_audio_transcription.delta`.
+  - translation audio probe saw `session.output_audio.delta`.
+- App launch check saw `/Applications/MeetingTranslator.app/Contents/MacOS/MeetingTranslator` running.
+- Skipped live mic/system capture because the user is asleep and ambient/system audio may be private.

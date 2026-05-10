@@ -46,6 +46,15 @@ swiftc \
   Sources/MeetingTranslator/Services/GeminiFlashService.swift \
   Sources/MeetingTranslator/Services/GeminiLiveService.swift \
   Sources/MeetingTranslator/Services/CostTracker.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModelRouter.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/AudioResampler.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift \
   Sources/MeetingTranslator/Managers/MicrophoneManager.swift \
   Sources/MeetingTranslator/Managers/SystemAudioManager.swift \
   Sources/MeetingTranslator/Managers/AppState.swift \

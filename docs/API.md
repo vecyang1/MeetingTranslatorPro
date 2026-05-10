@@ -434,6 +434,9 @@ struct LiveResult {
 | `processStitchLayer()` | 2 | OpenAI | Re-transcribe longer window, replace drafts |
 | `processGeminiQualityLayer()` | 2 | Gemini Flash | Re-process longer window, replace drafts |
 | `handleGeminiLiveResult()` | — | Gemini Live | Process WebSocket transcription + translate |
+| `isDuplicateOfRecent(_:)` | — | All | Echo dedup: check bigram similarity against recent entries |
+| `characterBigrams(_:)` | — | All | Generate character bigrams for Dice coefficient |
+| `diceCoefficient(_:_:)` | — | All | Compute Dice similarity between two bigram sets |
 
 ### 4.4 Translation Gating Logic
 
@@ -452,6 +455,84 @@ if needsTranslation {
 // For Gemini Flash: suppress the already-returned translation
 entry.translatedText = useTranslation ? result.translatedText : nil
 ```
+
+### 4.5 Echo / Duplicate Suppression API
+
+Three private methods in `AppState` implement post-transcription deduplication:
+
+```swift
+/// Generate character bigrams from text (language-agnostic — works for CJK, Latin, Arabic, etc.)
+private func characterBigrams(_ text: String) -> [String]
+
+/// Compute Dice coefficient similarity between two sets of bigrams (0.0–1.0)
+private func diceCoefficient(_ a: [String], _ b: [String]) -> Double
+
+/// Check if text is >70% similar to any entry from the last 15 seconds
+/// Returns true if the text should be dropped as a duplicate
+private func isDuplicateOfRecent(_ text: String) -> Bool
+```
+
+**Algorithm:** Character-bigram Dice coefficient — splits text into overlapping 2-character pairs, then computes `2 * |intersection| / (|A| + |B|)`.
+
+**Parameters:**
+- Similarity threshold: `0.70` (configurable constant)
+- Lookback window: `15` seconds (configurable constant)
+
+**Where called:**
+- `processOpenAIFast()` — after hallucination check, before entry creation
+- `processGeminiFast()` — after hallucination check, before entry creation
+- `handleGeminiLiveResult()` — after hallucination check, before entry creation
+
+**Where NOT called (by design):**
+- `processStitchLayer()` / `processGeminiQualityLayer()` — Layer 2 passes replace drafts and are expected to produce similar text
+
+### 4.6 OpenAI Realtime Voice Boundary
+
+The realtime engine is exposed to users as one friendly option: `OpenAI Realtime (Recommended)`. Internally it routes to the correct model family:
+
+| Mode | Model | Runtime boundary |
+|---|---|---|
+| Captions | `gpt-realtime-whisper` | `OpenAIRealtimeTranscriptionService` over `wss://api.openai.com/v1/realtime?intent=transcription` |
+| Live translation | `gpt-realtime-translate` | `OpenAIRealtimeTranslationService` over `/v1/realtime/translations` |
+| Dev assistant foundation | `gpt-realtime-2` | `OpenAIRealtimeAgentService`, hidden/dev-only |
+
+Realtime service ownership:
+
+- `OpenAIRealtimeCoordinator`: source-aware session lifecycle, routing, reducer ownership, and audio send success/failure.
+- `RealtimeModelRouter`: pure route decision.
+- `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation.
+- `AudioResampler`: explicit 16 kHz capture to 24 kHz PCM16 realtime boundary.
+
+App-level realtime events:
+
+```swift
+partialTranscript(source, itemID, text, timestamp)
+finalTranscript(source, itemID, text, language, timestamp)
+partialTranslation(source, itemID, text, timestamp)
+finalTranslation(source, itemID, text, language, timestamp)
+translatedAudioChunk(source, itemID, data, timestamp)
+sessionStateChanged(source, state)
+usageUpdated(source, mode, audioDurationSeconds, inputTokens, outputTokens)
+recoverableError(source, message, action)
+```
+
+Translation-spend invariant:
+
+```swift
+let sameLanguage = specifiedInputMatchesTarget()
+let mayUseRealtimeTranslate = showTranslations
+    && !sameLanguage
+    && inputLanguages.count == 1
+    && realtimeTranslatedAudioPlayback
+```
+
+If input language is auto-detected or translated-audio playback is off, realtime starts as transcription-only. Final non-same captions may still use the existing GPT text translation path, which preserves the `!sameLanguage && showTranslations` spend gate. This avoids silently generating translated audio while the text-only UI is active.
+
+Realtime cost additions in `CostTracker`:
+
+- OpenAI Realtime Whisper: `$0.017/min`
+- OpenAI Realtime Translate: `$0.034/min`
+- OpenAI Realtime 2: `$4/$24` text input/output per 1M and `$32/$64` audio input/output per 1M
 
 ---
 
