@@ -32,6 +32,12 @@ Implement the remaining Meeting Translator Pro realtime mission end to end from 
 
 ## Fresh Local Verification Summary
 
+Reusable runner:
+
+```bash
+tools/realtime-foundation/run_realtime_mission_verification.sh --local-only
+```
+
 Commands rerun after the local milestone commit:
 
 ```bash
@@ -94,12 +100,7 @@ Do not mark this mission complete until a valid key is available and synthetic p
 Get explicit user approval to create/install a valid OpenAI API key through the OpenAI Platform connector, or have the user provide a valid `OPENAI_API_KEY` in the environment. Then rerun synthetic provider probes for at least:
 
 ```bash
-tools/realtime-foundation/generate_synthetic_probe_audio.sh
-tools/realtime-foundation/realtime-foundation probe --mode transcription --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_en_to_zh_long.wav --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_en_to_zh_long.wav --target zh --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_zh_to_en.wav --target en --max-audio-seconds 8 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_code_switch.wav --target zh --max-audio-seconds 10 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode agent --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_en_to_zh_long.wav --max-audio-seconds 8 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
+tools/realtime-foundation/run_realtime_mission_verification.sh
 ```
 
 If audio fixtures are used, they must be generated/non-private and the probe must include `--i-understand-audio-is-sent-to-openai`.

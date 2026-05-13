@@ -8,6 +8,7 @@
 - Added off-by-default delayed speaker-recognition metadata and matching support: finalized system-audio rows can receive later diarization labels without rewriting transcript text, while ambiguous matches are ignored.
 - Added Settings `Realtime Captions`, `Live Interpretation`, and `Speaker Recognition` sections so realtime caption controls, interpreter prerequisites, and delayed-label privacy/cost disclosures are separate.
 - Added a macOS synthetic provider-audio fixture generator and `probe --max-audio-seconds` so long-utterance realtime translation probes can be run without private meeting audio.
+- Added a reusable realtime mission verification runner that executes the local gates, build/install/runtime inspection, and, when not in `--local-only` mode, the synthetic provider probes.
 - Added the canonical `docs/prd_feat_openai_realtime_translate_interpreter.md` PRD for true same-time interpretation with `gpt-realtime-translate`; `gpt-realtime-whisper` is documented only as a source-caption audit sidecar in that mode.
 - Added `docs/prd_feat_realtime_settings_runtime_clarity.md` so the Settings panel can be implemented around realtime captions, live interpretation prerequisites, display behavior, and fallback controls without misleading legacy Whisper + GPT timing.
 - Added `docs/prd_feat_realtime_speaker_recognition_sidecar.md` for a later delayed speaker-label sidecar using `gpt-4o-transcribe-diarize`, explicitly outside the realtime translation core.
