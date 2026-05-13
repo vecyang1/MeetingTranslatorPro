@@ -8,7 +8,7 @@
 **Primary model:** `gpt-realtime-translate`
 **Source-caption audit sidecar:** `gpt-realtime-whisper`
 **Historical predecessor:** `docs/prd_feat_openai_realtime_translation_next_stage.md`
-**Companion PRDs:** `docs/prd_feat_realtime_settings_runtime_clarity.md`, `docs/prd_feat_realtime_speaker_recognition_sidecar.md`
+**Companion PRDs:** `docs/prd_feat_realtime_settings_runtime_clarity.md`, `docs/prd_feat_realtime_translated_audio_playback.md`, `docs/prd_feat_realtime_speaker_recognition_sidecar.md`
 
 ---
 
@@ -85,7 +85,7 @@ Completion requires a real installed `/Applications/MeetingTranslator.app` run o
 
 - Do not use Whisper as the translation model.
 - Do not use `gpt-realtime-2` for the default interpreter MVP.
-- Do not enable translated audio playback until feedback behavior is proven.
+- Do not enable translated audio playback in M7. M8 is specified separately in `docs/prd_feat_realtime_translated_audio_playback.md` and requires feedback-safety proof before playback can ship.
 - Do not add tool calls, summaries, assistant actions, or meeting controls.
 - Do not implement speaker diarization in this M7 PRD.
 - Do not mix microphone and system audio into one translation stream unless source identity is still proven.
@@ -140,6 +140,7 @@ Acceptance criteria:
 - [x] Runtime forces translated audio playback off even if an old saved preference says true.
 - [x] `session.output_audio.delta` is ignored unless a future PRD explicitly enables safe playback.
 - [x] Settings copy says text interpretation is available, audio playback is not yet meeting-room safe.
+- [x] Future playback scope is split into `docs/prd_feat_realtime_translated_audio_playback.md` so M7 remains text-first and auditable.
 
 ### US-M7-005: Runtime Recovery Does Not Lie
 

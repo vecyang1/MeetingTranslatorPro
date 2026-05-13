@@ -1,6 +1,6 @@
 # Internal API Reference — Meeting Translator Pro
 
-**Version:** 2.3
+**Version:** 2.4
 **Last Updated:** 2026-05-13
 
 This document describes the internal service APIs, data models, and external API integrations used by Meeting Translator Pro. It is intended for developers and AI agents working on the codebase.
@@ -575,6 +575,19 @@ let mayUseRealtimeTranslate = showTranslations
 ```
 
 If input language is auto-detected, same-language, translations are hidden, or the explicit interpreter-session gate is off, realtime stays on the caption-first transcription path rather than starting a translation session. `gpt-realtime-translate` is the M7 live interpreter route and must not start unless the translation-spend invariant is satisfied. Translated audio playback is a separate output gate and remains off by default so text subtitles can use the translation session without speaker feedback.
+
+Translated audio playback M8 contract:
+
+- Source of truth: `docs/prd_feat_realtime_translated_audio_playback.md`.
+- Playback must use `gpt-realtime-translate` output audio from the existing `/v1/realtime/translations` session. Do not add `gpt-realtime-2`, legacy TTS, or another model for playback.
+- Runtime may pass `translatedAudioPlaybackEnabled: true` to `OpenAIRealtimeTranslationService` only when the M7 interpreter gate is true, a persisted M8 playback opt-in is true, and the translated-audio safety status is ready.
+- `session.output_audio.delta` is translated audio only. It must be decoded and routed to a dedicated playback manager; it must never create transcript rows.
+- `session.output_audio.done`, Stop, mute, route downgrade, fallback, and reconnect must drain or clear queued playback audio predictably.
+- `SystemAudioManager` must set `SCStreamConfiguration.excludesCurrentProcessAudio = true` when translated audio playback can be active, and tests must prove this remains configured. The local macOS SDK exposes this property on `SCStreamConfiguration` for macOS 13+.
+- If current-process audio exclusion is unavailable or a synthetic loopback/runtime probe shows app audio is still captured, playback stays disabled with a user-facing reason.
+- ScreenCaptureKit exclusion does not stop laptop-speaker bleed into the microphone. When microphone capture is active and the output looks like speakers, playback must be blocked or require a headphones/safe-output confirmation.
+- Cost UI should state that translated audio playback uses the already-active `gpt-realtime-translate` translation session unless current official OpenAI pricing docs require a separate output-audio charge.
+- Text export remains the default. Do not write raw translated audio files unless a later export PRD scopes and verifies that behavior.
 
 Language detection fallback:
 

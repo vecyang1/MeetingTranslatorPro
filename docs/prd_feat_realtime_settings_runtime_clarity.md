@@ -148,7 +148,7 @@ Show when selected engine is Realtime:
 - source-language prerequisite status;
 - `Live interpreter session` toggle;
 - detail line: "Uses `gpt-realtime-translate`; source captions use `gpt-realtime-whisper` for audit.";
-- disabled translated audio playback row with "coming later" copy.
+- disabled translated audio playback row with "coming later" copy until `docs/prd_feat_realtime_translated_audio_playback.md` ships safe playback.
 
 The "Live interpreter session" toggle should be enabled only when enough prerequisites exist to make the choice meaningful. If the UI allows toggling early, status must still prevent runtime spend until gates are true.
 
@@ -178,6 +178,7 @@ Use these exact concepts:
 - "Source captions" for original-language text.
 - "Fallback Whisper + GPT" for legacy non-realtime path.
 - "Translated audio playback" remains disabled.
+- Future enabled wording must follow `docs/prd_feat_realtime_translated_audio_playback.md` and show safety status, mute, and volume controls only after feedback behavior is proven.
 
 Avoid these misleading phrases in the Realtime section:
 

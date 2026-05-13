@@ -36,7 +36,8 @@ Safety notes:
 Known follow-up:
 
 - **M6 required now:** The current `OpenAI Realtime (Recommended)` route may still wait for a pause on long sentences because the default Realtime-2 caption path uses server VAD response boundaries. The next implementation pass must make caption-only mode delta-first with `gpt-realtime-whisper`: visible text should stream while the user is still speaking, before the sentence is complete.
-- **M7 next stage:** Realtime translation must now follow `docs/prd_feat_openai_realtime_translate_interpreter.md`. `gpt-realtime-translate` is the interpreter model; `gpt-realtime-whisper` is only a source-caption audit sidecar.
+- **M7 stage:** Realtime translation follows `docs/prd_feat_openai_realtime_translate_interpreter.md`. `gpt-realtime-translate` is the interpreter model; `gpt-realtime-whisper` is only a source-caption audit sidecar.
+- **M8 next stage:** Safe translated audio playback follows `docs/prd_feat_realtime_translated_audio_playback.md`. Playback must use `gpt-realtime-translate` output audio and stay disabled until feedback safety is proven.
 - Implemented 2026-05-12: transient TLS/WebSocket startup errors now run through `RealtimeConnectionRecoveryPolicy` and `AppState` schedules up to two short Realtime restarts. Legacy OpenAI fallback happens only after retry exhaustion when automatic fallback is enabled. Permanent auth/quota/model-access errors are not retried.
 
 ---
@@ -456,7 +457,7 @@ Uses live OpenAI sessions for captions, translation, or voice assistant features
 - Users need a visible `Follow latest captions` preference so live captions can stop pulling the scroll position away from earlier text they are reading; because this is a display preference, toggling it must not restart or reconfigure active Realtime sessions.
 - Growing grey draft text should expand downward without implicit layout animation before it is consolidated into final rows.
 - Translation should appear below the original text exactly like current entries.
-- If translated audio playback ships, it must be off by default to avoid feedback into meeting audio.
+- If translated audio playback ships, it must follow `docs/prd_feat_realtime_translated_audio_playback.md`, remain off by default, and prove feedback safety before enabling output.
 
 ### 8.3 Setup Experience
 

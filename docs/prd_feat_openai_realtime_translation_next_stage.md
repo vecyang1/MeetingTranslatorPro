@@ -21,7 +21,7 @@ Current product decision:
 - `gpt-realtime-translate` is the same-time interpretation model.
 - `gpt-realtime-whisper` is allowed only as a source-caption audit sidecar in interpreter mode.
 - Installed-app E2E must prove translated subtitles before this feature is marked complete.
-- Translated audio playback stays disabled until a separate feedback-safe PRD ships it.
+- Translated audio playback stays disabled until `docs/prd_feat_realtime_translated_audio_playback.md` ships a feedback-safe implementation.
 
 ---
 

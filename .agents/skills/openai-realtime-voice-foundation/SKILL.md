@@ -32,6 +32,7 @@ For a same-time translation MVP, use `gpt-realtime-translate` for translated out
 Current canonical product PRDs:
 
 - `docs/prd_feat_openai_realtime_translate_interpreter.md`: true simultaneous interpretation, with `gpt-realtime-translate` as the interpreter model and `gpt-realtime-whisper` only as source-caption sidecar.
+- `docs/prd_feat_realtime_translated_audio_playback.md`: M8 safe translated audio playback from `gpt-realtime-translate` output audio; playback remains off until this PRD is implemented and feedback safety is proven.
 - `docs/prd_feat_realtime_settings_runtime_clarity.md`: Settings must separate caption controls from live interpretation controls and must not show legacy Whisper + GPT fast/stitch timing under Realtime.
 - `docs/prd_feat_realtime_speaker_recognition_sidecar.md`: future delayed speaker recognition must be a sidecar, not part of the realtime translation core.
 
@@ -56,7 +57,7 @@ Current canonical product PRDs:
 - Keep existing OpenAI Whisper+GPT, Gemini Flash, and Gemini Live engines selectable as fallbacks. Deprioritize legacy Whisper-only/two-step OpenAI for new realtime work; `gpt-realtime-whisper` is part of the new Realtime series and remains the M6 caption route.
 - Settings must not show the legacy Whisper + GPT fast/stitch pipeline while `OpenAI Realtime (Recommended)` is selected. Realtime controls should be split into `Realtime Captions`, `Live Interpretation`, `Display Behavior`, `Audio Input Filter`, and `Speaker Recognition`. The shared noise gate belongs in `Audio Input Filter` because it gates captured audio before every engine route.
 - Speaker recognition is a delayed, off-by-default sidecar. Use `gpt-4o-transcribe-diarize` only through `/v1/audio/transcriptions` with `response_format=diarized_json` and `chunking_strategy=auto`; do not put diarization in the Realtime API path, block captions/translation, or rewrite transcript text by default.
-- Translated audio playback is disabled until feedback behavior is proven; do not pass a saved true value into runtime merely because an old preference exists.
+- Translated audio playback is disabled until `docs/prd_feat_realtime_translated_audio_playback.md` is implemented. Do not pass a saved true value into runtime merely because an old preference exists. M8 playback must use the existing `gpt-realtime-translate` output audio, not `gpt-realtime-2` or legacy TTS, and must prove ScreenCaptureKit current-process audio exclusion plus microphone/output safety before enabling playback.
 - If a realtime provider omits a language code, use the shared `LanguageDetector` fallback. Do not label every Latin-script transcript as English; Vietnamese, Turkish, Spanish, and other high-signal Latin-script languages must keep their own labels when detectable.
 - Transient TLS/WebSocket startup failures should be handled by `RealtimeConnectionRecoveryPolicy` plus `AppState` bounded retries. Legacy fallback is separate and should happen only after retry exhaustion when enabled. Do not retry permanent auth, quota, billing, permission, or model-access failures.
 - Do not log raw audio or full private transcripts in debug output.
@@ -67,10 +68,11 @@ Current canonical product PRDs:
 2. Run `tools/realtime-foundation/realtime-foundation models` and `recommend`; interpreter recommendations require `--pinned-source-language` and `--interpreter-session`.
 3. Probe model visibility with `probe --mode transcription`, `probe --mode translation`, and `probe --mode agent`.
 4. For full provider proof, run `tools/realtime-foundation/run_realtime_mission_verification.sh` with generated fixtures and a valid transient `OPENAI_API_KEY`; this passed on 2026-05-13 for Whisper captions, Translate EN->ZH/ZH->EN/code-switch, and Realtime-2 agent text.
-5. For native macOS/server raw audio, prefer WebSocket and 24 kHz PCM16 at the realtime service boundary.
-6. For browser/mobile audio, prefer WebRTC and ephemeral/client secrets.
-7. Keep protocol parsing inside `OpenAIRealtime*Service` files and reducer logic inside `RealtimeEventReducer`; keep `AppState` orchestration-only.
-8. Before claiming completion, run build, model probes, synthetic audio probes where possible, app launch, and safe runtime checks.
+5. For M8 playback, refresh `docs/prd_feat_realtime_translated_audio_playback.md`, extend provider probes to capture `session.output_audio.delta` into synthetic audio, and keep playback disabled if feedback-loop proof cannot be run safely.
+6. For native macOS/server raw audio, prefer WebSocket and 24 kHz PCM16 at the realtime service boundary.
+7. For browser/mobile audio, prefer WebRTC and ephemeral/client secrets.
+8. Keep protocol parsing inside `OpenAIRealtime*Service` files and reducer logic inside `RealtimeEventReducer`; keep `AppState` orchestration-only.
+9. Before claiming completion, run build, model probes, synthetic audio probes where possible, app launch, and safe runtime checks.
 
 ## Read These References
 
@@ -84,6 +86,7 @@ Current canonical product PRDs:
 - Keeping `gpt-realtime-2` as the caption-only path when it waits for server VAD pauses; M6 requires text during speech.
 - Using `gpt-realtime-2` to start a hidden translation spend path when translations are off, same-language, or source language is still unknown.
 - Hiding translation UI while leaving a translation session connected.
+- Flipping `translatedAudioPlaybackEnabled` to true without adding playback safety gates, mute/stop behavior, and feedback-loop verification.
 - Mixing mic and system audio into one realtime stream without preserving source identity.
 - Treating partial deltas as permanent transcript entries.
 - Testing only clean synthetic audio, then claiming meeting-readiness.

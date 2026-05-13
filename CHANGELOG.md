@@ -10,6 +10,7 @@
 - Added a macOS synthetic provider-audio fixture generator and `probe --max-audio-seconds` so long-utterance realtime translation probes can be run without private meeting audio.
 - Added a reusable realtime mission verification runner that executes the local gates, build/install/runtime inspection, and, when not in `--local-only` mode, the synthetic provider probes.
 - Added the canonical `docs/prd_feat_openai_realtime_translate_interpreter.md` PRD for true same-time interpretation with `gpt-realtime-translate`; `gpt-realtime-whisper` is documented only as a source-caption audit sidecar in that mode.
+- Added `docs/prd_feat_realtime_translated_audio_playback.md` as the M8 goal-ready PRD for safe translated audio playback from `gpt-realtime-translate` output audio, with explicit feedback-safety gates before playback can be enabled.
 - Added `docs/prd_feat_realtime_settings_runtime_clarity.md` so the Settings panel can be implemented around realtime captions, live interpretation prerequisites, display behavior, and fallback controls without misleading legacy Whisper + GPT timing.
 - Added `docs/prd_feat_realtime_speaker_recognition_sidecar.md` for a later delayed speaker-label sidecar using `gpt-4o-transcribe-diarize`, explicitly outside the realtime translation core.
 
@@ -17,6 +18,7 @@
 
 - Marked the older realtime translation PRD as historical/superseded so it is not mistaken for proof that the installed app has shipped user-facing same-time interpretation.
 - Updated `docs/PRD.md`, `docs/API.md`, and the OpenAI realtime foundation skill to point future agents at the new PRD split and the `gpt-realtime-translate` interpreter route.
+- Updated the realtime docs and skill references so "Translated audio playback (coming later)" now points to the M8 playback PRD instead of an undefined future task.
 - Updated the realtime foundation CLI so `recommend --task interpreter` requires `--pinned-source-language` and `--interpreter-session`; translated audio remains a deprecated alias and is no longer the conceptual gate.
 
 ### Fixed
