@@ -509,8 +509,8 @@ Canonical feature contracts:
 Realtime service ownership:
 
 - `OpenAIRealtimeCoordinator`: source-aware session lifecycle, routing, reducer ownership, and audio send success/failure.
-- `RealtimeModelRouter`: pure route decision.
-- `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation. Empty finals and stale shorter prefix finals preserve the longer visible draft text so accurate live captions do not disappear or lose tail words before `AppState` confirms the row.
+- `RealtimeModelRouter`: pure route decision. Translation mode requires visible translations, non-same source/target language, exactly one pinned source language, and the explicit interpreter-session gate.
+- `RealtimeEventReducer`: accumulates `*.delta` text by `(source, itemID)` before final confirmation. Empty finals and stale shorter prefix finals preserve the longer visible draft text so accurate live captions do not disappear or lose tail words before `AppState` confirms the row. Output-first translation rows report superseded item IDs when they later bind to a Whisper source-caption row, allowing `AppState` to remove stale translation-only draft rows.
 - `AudioResampler`: explicit 16 kHz capture to 24 kHz PCM16 realtime boundary.
 - `RealtimeDraftFinalizer`: collects non-empty realtime live captions as stop-time final candidates so `AppState.confirmRealtimeEntry()` can apply the usual filters, while still dropping empty/hallucinated realtime drafts.
 - `RealtimeUtteranceMerger`: treats provider final items as transport chunks and merges nearby same-source/same-language chunks into readable dialog rows before display/export. It compares new chunks with the latest merged provider timestamp (`realtimeLastMergedAt`) rather than only the row's original start time, so one continuous thought can keep rolling into a single row without losing the first timestamp. It also filters unstable tiny fragments such as one-character fillers, short Japanese/Korean hallucination tails, and known bad micro-mishears, while preserving useful connector fragments that belong inside a larger utterance.
@@ -535,20 +535,21 @@ Transcript display behavior:
 
 For M6, caption-only OpenAI Realtime should prefer `gpt-realtime-whisper` because the product requirement is visible transcript deltas while the user is still speaking. `gpt-realtime-2` sessions remain available for dialog understanding and future approval-gated assistant workflows. They use low reasoning effort for latency, text output only, `server_vad` with a 700 ms silence window, and never enable tool/action behavior without a separate approval-gated assistant mode. Agent service parsing accepts both direct text events (`response.output_text.*`) and nested final response containers (`response.output_item.done`, `response.done`); nested finals are reconciled by inner message IDs (`item.id` / `response.output[].id`) so partial rows finalize in place. Explicitly incomplete, cancelled, or failed nested response containers are ignored as transcript finals because Realtime emits done events for non-completed responses too. System-audio chunks append a short silence tail before sending to Realtime-2 so server VAD closes short ScreenCaptureKit turns; microphone chunks are sent without that tail. Outside `gpt-realtime-translate` translation mode, AppState consolidates adjacent same-source realtime rows after final confirmation so transport chunks render as readable utterances; merge windows are evaluated against adjacent provider chunk gaps using `realtimeLastMergedAt`, and tail-only duplicate finals are dropped only after source, language, finalized-row, length, and short time-window gates pass. Translation mode is M7 and keeps item rows stable until transcript and translation finals attach.
 
-For M7, `gpt-realtime-translate` is the same-time interpretation model. Provider probes showed Translate output transcript/audio events while source transcript events were not consistently emitted from the translation stream itself, so the app may fan accepted audio to a paired `gpt-realtime-whisper` source-caption sidecar when the explicit interpreter gate is on. The reducer attaches translation output to the latest source-caption item for the same audio source, including the output-first case where Translate text arrives before Whisper source text. This preserves source captions, proves source deltas with the realtime transcription model, and makes cost accounting explicit: M7 with source captions is Translate + Whisper. Whisper must not be described as the translation model.
+For M7, `gpt-realtime-translate` is the same-time interpretation model. Provider probes showed Translate output transcript/audio events while source transcript events were not consistently emitted from the translation stream itself, so the app fans accepted audio to a paired `gpt-realtime-whisper` source-caption sidecar when the explicit interpreter gate is on. The reducer attaches translation output to the latest source-caption item for the same audio source, including the output-first case where Translate text arrives before Whisper source text, and removes the superseded translation-only draft row once it rebinds. This preserves source captions, proves source deltas with the realtime transcription model, and makes cost accounting explicit: M7 with source captions is Translate + Whisper. Whisper must not be described as the translation model.
 
 Settings UI contract:
 
 - When `selectedEngine == .openAIRealtime`, Settings must present Realtime controls only: caption latency, automatic fallback, live interpreter gate/status, translation visibility, and input-language hinting. It must not show legacy `fastInterval`, `stitchInterval`, or the old fast/stitch pipeline diagram because those controls do not affect `gpt-realtime-whisper`.
-- The Realtime Settings section must separate `Realtime Captions` from `Live Interpretation`. Live interpretation uses `gpt-realtime-translate`; source captions use `gpt-realtime-whisper` for audit/export.
+- Settings must separate `Realtime Captions`, `Live Interpretation`, `Display Behavior`, `Audio Input Filter`, and `Speaker Recognition`. Live interpretation uses `gpt-realtime-translate`; source captions use `gpt-realtime-whisper` for audit/export.
 - The shared noise gate belongs in the Settings panel's `Audio Input Filter` section, outside `Engine Controls`, because it runs before every engine route rather than configuring a Realtime model.
-- When `selectedEngine == .openAI`, Settings may show the legacy Whisper + GPT fast draft and stitch pass intervals.
+- When `selectedEngine == .openAI`, Settings may show the legacy Whisper + GPT fast draft and stitch pass intervals under `Legacy Fallback Controls`.
 - When `selectedEngine == .geminiFlash`, Settings may show Gemini Flash fast draft and quality pass intervals.
 - When `selectedEngine == .geminiLive`, Settings should label Gemini Live as a streaming alternate and should not claim it is the best live-meeting route now that OpenAI Realtime is the primary path.
 - The Settings translation toggle is bound through `AppState.setShowTranslations(_:)` so active realtime routing can restart safely if needed.
 - The Settings live-interpreter toggle is bound through `AppState.setRealtimeInterpreterSessionEnabled(_:)` so enabling or disabling `gpt-realtime-translate` reroutes the active Realtime session immediately instead of waiting for another full settings save.
 - `Follow latest captions` belongs under Settings `Display Behavior` and also appears as an icon button in the control bar for live reading. It is a UI display preference, not a Realtime model parameter.
 - Translated audio playback is intentionally displayed as coming later and is forced off at runtime until room-feedback behavior is proven.
+- Speaker recognition is off by default. When enabled, Settings must disclose delayed labels, `gpt-4o-transcribe-diarize` cost/privacy implications, and that no audio is sent while the mode is Off.
 
 App-level realtime events:
 
@@ -594,8 +595,10 @@ Product route rule: use `gpt-realtime-translate` for same-time translation MVPs.
 Speaker recognition boundary:
 
 - The live Realtime route does not provide trusted multi-person diarization.
-- Future speaker recognition should use `gpt-4o-transcribe-diarize` through `/v1/audio/transcriptions` as a delayed sidecar, with `response_format=diarized_json` and `chunking_strategy=auto`.
-- Diarization may annotate rows with delayed speaker labels, but must not block realtime captions/translation or rewrite source text by default.
+- Speaker recognition uses `SpeakerRecognitionMode.off` by default. Off means no audio windows are sent for diarization.
+- Delayed speaker recognition uses `gpt-4o-transcribe-diarize` through `/v1/audio/transcriptions` as a sidecar, with `response_format=diarized_json` and `chunking_strategy=auto`.
+- Known-speaker references use `known_speaker_names[]` and `known_speaker_references[]`, capped at four references in the first-pass request builder.
+- Diarization may annotate finalized system-audio rows with delayed speaker labels (`speakerID`, `speakerDisplayName`, `speakerConfidence`, `speakerSource`), but must not block realtime captions/translation or rewrite source text by default. Ambiguous timestamp/text matches are ignored.
 
 Verification helpers:
 
@@ -606,6 +609,7 @@ Verification helpers:
 - Transcript follow UI smoke: `swiftc tools/realtime-foundation/tests/transcript_follow_ui_smoke.swift -o /tmp/transcript_follow_ui_smoke && /tmp/transcript_follow_ui_smoke`
 - Language detector smoke: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift tools/realtime-foundation/tests/language_detector_smoke.swift -o /tmp/language_detector_smoke && /tmp/language_detector_smoke`
 - Synthetic app E2E: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/*.swift tools/realtime-foundation/tests/realtime_app_e2e.swift -o /tmp/realtime_app_e2e && /tmp/realtime_app_e2e`
+- Realtime foundation CLI recommendation smoke: `tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --pinned-source-language --interpreter-session`
 - Provider probes must use generated/non-private fixtures and `--i-understand-audio-is-sent-to-openai`; never use private meeting audio.
 
 ---

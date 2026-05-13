@@ -6,6 +6,39 @@ enum OpenAIRealtimeModel: String {
     case realtimeAgent = "gpt-realtime-2"
 }
 
+enum RealtimePricing {
+    static let whisperPerMinuteUSD: Double = 0.017
+    static let translatePerMinuteUSD: Double = 0.034
+    static let realtime2TextInputPerMillionUSD: Double = 4.00
+    static let realtime2TextOutputPerMillionUSD: Double = 24.00
+    static let realtime2AudioInputPerMillionUSD: Double = 32.00
+    static let realtime2AudioOutputPerMillionUSD: Double = 64.00
+    static let realtime2InputAudioTokensPerSecond: Double = 10.0
+    static let realtime2OutputAudioTokensPerSecond: Double = 20.0
+
+    static func whisperCost(audioDurationSeconds: Double) -> Double {
+        (audioDurationSeconds / 60.0) * whisperPerMinuteUSD
+    }
+
+    static func translateCost(audioDurationSeconds: Double) -> Double {
+        (audioDurationSeconds / 60.0) * translatePerMinuteUSD
+    }
+
+    static func realtime2Cost(
+        inputAudioDurationSeconds: Double,
+        outputAudioDurationSeconds: Double = 0,
+        inputTextTokens: Int = 0,
+        outputTextTokens: Int = 0
+    ) -> Double {
+        let inputAudioTokens = inputAudioDurationSeconds * realtime2InputAudioTokensPerSecond
+        let outputAudioTokens = outputAudioDurationSeconds * realtime2OutputAudioTokensPerSecond
+        return (inputAudioTokens / 1_000_000.0) * realtime2AudioInputPerMillionUSD
+            + (outputAudioTokens / 1_000_000.0) * realtime2AudioOutputPerMillionUSD
+            + (Double(inputTextTokens) / 1_000_000.0) * realtime2TextInputPerMillionUSD
+            + (Double(outputTextTokens) / 1_000_000.0) * realtime2TextOutputPerMillionUSD
+    }
+}
+
 enum RealtimeRouteMode: String {
     case transcription
     case translation
@@ -22,8 +55,8 @@ enum RealtimeCaptionLatencyPreset: String, CaseIterable, Identifiable {
     var targetDelaySeconds: Double {
         switch self {
         case .aggressive: return 0.4
-        case .balanced: return 1.0
-        case .accuracy: return 1.8
+        case .balanced: return 1.4
+        case .accuracy: return 2.4
         }
     }
 
@@ -34,11 +67,62 @@ enum RealtimeCaptionLatencyPreset: String, CaseIterable, Identifiable {
     var description: String {
         switch self {
         case .aggressive:
-            return "Earliest partial text; may revise more often."
+            return "Earliest partial text; may produce choppier rows."
         case .balanced:
-            return "Best default for live meetings."
+            return "Best default for readable live meetings."
         case .accuracy:
-            return "Waits slightly longer for steadier captions."
+            return "Waits longer for steadier, less fragmented captions."
+        }
+    }
+}
+
+struct RealtimeAudioBoundaryContext {
+    private let maxTailBytes: Int
+    private var microphoneTail = Data()
+    private var systemTail = Data()
+
+    init(overlapSeconds: TimeInterval, sampleRate: Int = 16_000, bytesPerSample: Int = 2) {
+        maxTailBytes = max(0, Int(overlapSeconds * TimeInterval(sampleRate * bytesPerSample)))
+    }
+
+    mutating func contextualizedAudio(_ data: Data, source: TranscriptionEntry.AudioSource) -> Data {
+        guard !data.isEmpty, maxTailBytes > 0 else { return data }
+        let tail = tailData(for: source)
+        updateTail(with: data, source: source)
+        guard !tail.isEmpty else { return data }
+        return tail + data
+    }
+
+    mutating func reset() {
+        microphoneTail = Data()
+        systemTail = Data()
+    }
+
+    mutating func reset(source: TranscriptionEntry.AudioSource) {
+        switch source {
+        case .microphone:
+            microphoneTail = Data()
+        case .system:
+            systemTail = Data()
+        }
+    }
+
+    private func tailData(for source: TranscriptionEntry.AudioSource) -> Data {
+        switch source {
+        case .microphone:
+            return microphoneTail
+        case .system:
+            return systemTail
+        }
+    }
+
+    private mutating func updateTail(with data: Data, source: TranscriptionEntry.AudioSource) {
+        let nextTail = Data(data.suffix(maxTailBytes))
+        switch source {
+        case .microphone:
+            microphoneTail = nextTail
+        case .system:
+            systemTail = nextTail
         }
     }
 }
@@ -76,6 +160,11 @@ enum RealtimeSessionState: Equatable {
             return message
         }
     }
+
+    func presented(activeMode: RealtimeRouteMode?) -> RealtimeSessionState {
+        guard case .connected = self, let activeMode else { return self }
+        return .connected(activeMode)
+    }
 }
 
 struct RealtimeRouteDecision: Equatable {
@@ -84,6 +173,16 @@ struct RealtimeRouteDecision: Equatable {
     let endpointPath: String
     let reason: String
     let shouldStartTranslationSession: Bool
+    let shouldStartSourceCaptionSession: Bool
+}
+
+struct RealtimeSendResult: Equatable {
+    let sentToPrimary: Bool
+    let sentToSourceCaption: Bool
+
+    var accepted: Bool {
+        sentToPrimary || sentToSourceCaption
+    }
 }
 
 enum RealtimeAppEvent {
@@ -107,6 +206,29 @@ struct RealtimeReducedEntry: Equatable {
     let timestamp: Date
     let isFinal: Bool
     let isTranslationOnly: Bool
+    let supersededItemIDs: [String]
+
+    init(
+        source: TranscriptionEntry.AudioSource,
+        itemID: String,
+        text: String,
+        translatedText: String?,
+        language: String?,
+        timestamp: Date,
+        isFinal: Bool,
+        isTranslationOnly: Bool,
+        supersededItemIDs: [String] = []
+    ) {
+        self.source = source
+        self.itemID = itemID
+        self.text = text
+        self.translatedText = translatedText
+        self.language = language
+        self.timestamp = timestamp
+        self.isFinal = isFinal
+        self.isTranslationOnly = isTranslationOnly
+        self.supersededItemIDs = supersededItemIDs
+    }
 }
 
 struct RealtimePendingItem: Equatable {

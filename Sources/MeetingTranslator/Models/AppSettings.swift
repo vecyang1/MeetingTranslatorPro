@@ -20,10 +20,10 @@ enum TranscriptionEngine: String, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
-        case .openAIRealtime: return "Live OpenAI sessions for low-latency captions and translation. Best future path for meetings."
-        case .openAI: return "Two-step: Whisper transcription + GPT-4o-mini translation. Most accurate but slower (~10-15s)."
+        case .openAIRealtime: return "Primary live captions: gpt-realtime-whisper with optional realtime translation session."
+        case .openAI: return "Legacy fallback: Whisper + GPT-4o-mini translation. Accurate but slower (~10-15s)."
         case .geminiFlash: return "Single API call for transcription + translation. Good balance of speed and accuracy (~3-5s)."
-        case .geminiLive: return "Real-time WebSocket streaming. Lowest latency, sub-second response. Best for live meetings."
+        case .geminiLive: return "Experimental Gemini streaming alternate. Useful for comparison or fallback."
         }
     }
 

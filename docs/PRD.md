@@ -147,13 +147,13 @@ The OpenAI Realtime feature PRD lives at `docs/prd_feat_openai_realtime_voice_fo
 - Native Swift services under `Sources/MeetingTranslator/Services/OpenAIRealtime/`.
 - A coordinator boundary so `AppState` remains responsible for app orchestration and entry confirmation, not raw Realtime protocol parsing.
 
-The current M6 realtime priority is caption-first: OpenAI Realtime should use `gpt-realtime-whisper` transcript deltas so grey/live text appears while the user is still speaking. `gpt-realtime-2` is reserved for dialog understanding and future approval-gated assistant features. Realtime translation with `gpt-realtime-translate` is the M7 stage and remains gated by visible translations, pinned non-same source language, and an explicit interpreter-session gate. In M7, source captions are still proven by a paired `gpt-realtime-whisper` source-caption sidecar because live provider probes showed translation output events from `gpt-realtime-translate` but did not consistently emit source transcript events.
+The current realtime route is caption-first unless the paid interpreter invariant is fully satisfied. Caption-only OpenAI Realtime uses `gpt-realtime-whisper` transcript deltas so grey/live text appears while the user is still speaking. `gpt-realtime-2` is reserved for dialog understanding and future approval-gated assistant features. Realtime translation uses `gpt-realtime-translate` only when translations are visible, exactly one source language is pinned, source and target differ, and the explicit interpreter-session gate is enabled. In M7, source captions are still proven by a paired `gpt-realtime-whisper` source-caption sidecar because live provider probes showed translation output events from `gpt-realtime-translate` but did not consistently emit source transcript events.
 
 Cost-driven model choice: realtime captions use `gpt-realtime-whisper` at about `$1.02/hour/source`; translation output uses `gpt-realtime-translate` at about `$2.04/hour/source`; M7 live interpreter with source captions runs both and is about `$3.06/hour/source`. `gpt-realtime-2` is token-metered and roughly `$5.76/hour` for one hour of user audio plus one hour of assistant audio, so it should not be the default translation engine.
 
 Readability rule: Realtime provider final items are transport chunks, not guaranteed sentence boundaries. The app keeps live partials visible, then merges nearby same-source `gpt-realtime-whisper` finals into readable utterance rows, filters unstable tiny fragments, and lets CJK row text wrap naturally instead of inserting manual newlines.
 
-Settings rule: when `OpenAI Realtime (Recommended)` is selected, Settings shows Realtime controls only. Legacy Whisper + GPT fast/stitch timing lives under the fallback engine so users do not mistake those intervals for `gpt-realtime-whisper` controls.
+Settings rule: when `OpenAI Realtime (Recommended)` is selected, Settings separates `Realtime Captions`, `Live Interpretation`, `Display Behavior`, `Audio Input Filter`, and optional `Speaker Recognition`. Legacy Whisper + GPT fast/stitch timing lives under `Legacy Fallback Controls` so users do not mistake those intervals for `gpt-realtime-whisper` controls.
 
 ### 3.12 Realtime Feature PRD Map
 
@@ -162,9 +162,9 @@ Realtime work is now split into explicit feature PRDs so future agents do not bl
 | PRD | Status | Product boundary |
 |---|---|---|
 | `docs/prd_feat_openai_realtime_caption_delta_first.md` | Implemented/hardening | `gpt-realtime-whisper` source captions while speech is still arriving. |
-| `docs/prd_feat_openai_realtime_translate_interpreter.md` | Goal-ready | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
-| `docs/prd_feat_realtime_settings_runtime_clarity.md` | Goal-ready | Settings panel must reflect actual Realtime runtime controls and hide legacy Whisper + GPT timing under Realtime. |
-| `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Goal-ready for later M8 | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
+| `docs/prd_feat_openai_realtime_translate_interpreter.md` | Implemented locally / provider probe pending valid key | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
+| `docs/prd_feat_realtime_settings_runtime_clarity.md` | Implemented locally | Settings panel reflects actual Realtime runtime controls and hides legacy Whisper + GPT timing under Realtime. |
+| `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Implemented as off-by-default delayed sidecar foundation | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
 | `docs/prd_feat_openai_realtime_translation_next_stage.md` | Historical/superseded | Retained for earlier probe notes only; do not use as completion proof. |
 
 Same-time interpretation decision: `gpt-realtime-translate` is the interpreter model. `gpt-realtime-whisper` may run beside it only to provide original-language captions and export/audit text. `gpt-realtime-2` remains reserved for future voice-agent or meeting-assistant workflows.
@@ -302,7 +302,7 @@ The app is distributed as a local build, not through the App Store. The bundle i
 
 The following are explicitly out of scope for the current version:
 
-- **Speaker diarization in the realtime core:** The app does not distinguish between different remote speakers in the live caption/interpreter route. Optional delayed labels are planned separately in `docs/prd_feat_realtime_speaker_recognition_sidecar.md`.
+- **Speaker diarization in the realtime core:** The app does not distinguish between different remote speakers inside the live caption/interpreter route. Optional delayed labels are a separate off-by-default sidecar using `gpt-4o-transcribe-diarize` through `/v1/audio/transcriptions`.
 - **Offline mode:** All transcription and translation requires internet connectivity and API keys
 - **App Store distribution:** The app uses non-sandboxed entitlements for ScreenCaptureKit access
 - **iOS/iPadOS support:** macOS only, due to ScreenCaptureKit and AVAudioEngine dependencies
@@ -320,3 +320,4 @@ The following are explicitly out of scope for the current version:
 | 2026-04-03 | 2.1 | Echo/duplicate suppression via character-bigram Dice coefficient deduplication |
 | 2026-05-10 | 2.2 | Added OpenAI Realtime foundation: skill/CLI, native Swift services, gated translation sessions, and runtime probes |
 | 2026-05-13 | 2.3 | Added canonical Realtime Translate interpreter PRD, Settings clarity PRD, and delayed speaker-recognition sidecar PRD. |
+| 2026-05-13 | 2.4 | Implemented local M7 route gates, output-first row cleanup, split Realtime Settings sections, and off-by-default delayed speaker-label metadata/matching. |

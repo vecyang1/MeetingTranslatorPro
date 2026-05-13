@@ -38,12 +38,12 @@ Current canonical product PRDs:
 ## Meeting Translator Invariants
 
 - Do not alter bundle ID, signing identity, entitlements, permission behavior, or `build_app.sh` install path.
-- Never start or maintain a translation session unless `!sameLanguage && showTranslations` and an explicit realtime interpreter/session gate is enabled.
+- Never start or maintain a translation session unless `showTranslations`, `!sameLanguage`, exactly one source language is pinned, and an explicit realtime interpreter/session gate is enabled.
 - Translation-off, same-language, and auto-detect-with-unknown-source modes should stay on the caption-first `gpt-realtime-whisper` transcription path, not a translation session.
 - Realtime translation is M7; do not add hidden translation-session spend while implementing M6 caption streaming. In M7, the explicit interpreter route sends accepted audio to `gpt-realtime-translate` and a paired `gpt-realtime-whisper` source-caption session, so cost is Translate + Whisper. Translated audio playback is a separate off-by-default output gate.
 - Preserve separate microphone and system-audio source labels.
 - Partial transcript rows update in place by `(source, itemID)`; final rows still pass empty, hallucination, overlap, echo dedup, language, and translation gates.
-- Translation output may arrive before the paired Whisper source caption. Reducer logic should attach Translate output to the latest same-source source-caption item once available, not create duplicate/chopped translation-only rows.
+- Translation output may arrive before the paired Whisper source caption. Reducer logic should attach Translate output to the latest same-source source-caption item once available and remove the superseded temporary translation-only row, not create duplicate/chopped translation-only rows.
 - Provider final items may be transport chunks, not user dialog turns. Merge nearby same-source/same-language final chunks into readable utterance rows before display/export, and only drop tail-only duplicate chunks after the same source, language, finalized-row, and short time-window gates pass.
 - User-facing rows should be semantic-ish utterances, not one row per low-level audio commit. Keep useful partials live, but consolidate nearby same-source `gpt-realtime-whisper` finals, preserve discourse fragments such as Mandarin "就是" when they connect thoughts, and drop unstable tiny fragments such as single-character fillers, short Japanese/Korean hallucination tails, or known bad English mishears from synthetic probes.
 - Rolling realtime row consolidation should compare the next provider final against the latest merged chunk timestamp (`realtimeLastMergedAt`), not only the row's first visible timestamp, so a continuous thought can remain one readable row.
@@ -54,7 +54,8 @@ Current canonical product PRDs:
 - Realtime-2 text may arrive as `response.output_text.*`, `response.output_item.done`, or `response.done`; future agents must parse nested final response containers before declaring "no caption output." For nested finals, reconcile by inner `item.id` / `response.output[].id` so existing partial rows finalize in place.
 - ScreenCaptureKit system audio may stop delivering buffers immediately after short sounds; append a small silence tail on the system-audio Realtime-2 path so server VAD can close the turn. Do not add that tail to microphone audio.
 - Keep existing OpenAI Whisper+GPT, Gemini Flash, and Gemini Live engines selectable as fallbacks. Deprioritize legacy Whisper-only/two-step OpenAI for new realtime work; `gpt-realtime-whisper` is part of the new Realtime series and remains the M6 caption route.
-- Settings must not show the legacy Whisper + GPT fast/stitch pipeline while `OpenAI Realtime (Recommended)` is selected. Realtime engine controls should show caption latency, automatic fallback, translation visibility, explicit interpreter readiness, and input-language guidance only. The shared noise gate belongs in an `Audio Input Filter` section outside `Engine Controls` because it gates captured audio before every engine route.
+- Settings must not show the legacy Whisper + GPT fast/stitch pipeline while `OpenAI Realtime (Recommended)` is selected. Realtime controls should be split into `Realtime Captions`, `Live Interpretation`, `Display Behavior`, `Audio Input Filter`, and `Speaker Recognition`. The shared noise gate belongs in `Audio Input Filter` because it gates captured audio before every engine route.
+- Speaker recognition is a delayed, off-by-default sidecar. Use `gpt-4o-transcribe-diarize` only through `/v1/audio/transcriptions` with `response_format=diarized_json` and `chunking_strategy=auto`; do not put diarization in the Realtime API path, block captions/translation, or rewrite transcript text by default.
 - Translated audio playback is disabled until feedback behavior is proven; do not pass a saved true value into runtime merely because an old preference exists.
 - If a realtime provider omits a language code, use the shared `LanguageDetector` fallback. Do not label every Latin-script transcript as English; Vietnamese, Turkish, Spanish, and other high-signal Latin-script languages must keep their own labels when detectable.
 - Transient TLS/WebSocket startup failures should be handled by `RealtimeConnectionRecoveryPolicy` plus `AppState` bounded retries. Legacy fallback is separate and should happen only after retry exhaustion when enabled. Do not retry permanent auth, quota, billing, permission, or model-access failures.
@@ -63,7 +64,7 @@ Current canonical product PRDs:
 ## Workflow
 
 1. Refresh current OpenAI docs before model/API decisions.
-2. Run `tools/realtime-foundation/realtime-foundation models` and `recommend`.
+2. Run `tools/realtime-foundation/realtime-foundation models` and `recommend`; interpreter recommendations require `--pinned-source-language` and `--interpreter-session`.
 3. Probe model visibility with `probe --mode transcription`, `probe --mode translation`, and `probe --mode agent`.
 4. For native macOS/server raw audio, prefer WebSocket and 24 kHz PCM16 at the realtime service boundary.
 5. For browser/mobile audio, prefer WebRTC and ephemeral/client secrets.

@@ -112,13 +112,16 @@ final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @uncheck
         fallbackItemID: String
     ) -> [(itemID: String, text: String)] {
         if let item = event["item"] as? [String: Any],
+           isCompletedStatus(item["status"]),
            let text = extractText(fromItem: item) {
             let itemID = item["id"] as? String ?? event["item_id"] as? String ?? fallbackItemID
             return [(itemID: itemID, text: text)]
         }
         if let response = event["response"] as? [String: Any],
+           isCompletedStatus(response["status"]),
            let output = response["output"] as? [[String: Any]] {
             return output.compactMap { item in
+                guard isCompletedStatus(item["status"]) else { return nil }
                 guard let text = extractText(fromItem: item) else { return nil }
                 let itemID = item["id"] as? String
                     ?? item["item_id"] as? String
@@ -172,5 +175,10 @@ final class OpenAIRealtimeAgentService: OpenAIRealtimeWebSocketService, @uncheck
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         return nil
+    }
+
+    private static func isCompletedStatus(_ status: Any?) -> Bool {
+        guard let status = status as? String else { return true }
+        return status == "completed"
     }
 }

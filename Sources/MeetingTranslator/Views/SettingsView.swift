@@ -28,6 +28,8 @@ struct SettingsView: View {
                     // API Keys
                     settingsSection(title: "API Keys", icon: "key.fill", iconColor: .orange) {
                         VStack(alignment: .leading, spacing: 14) {
+                            infoRow(text: apiKeyHelpText, icon: "key.horizontal.fill", color: .orange)
+
                             apiKeyField(
                                 label: "OpenAI API Key",
                                 placeholder: "sk-...",
@@ -70,13 +72,23 @@ struct SettingsView: View {
 
                             Divider().opacity(0.3)
 
+                            audioToggle(
+                                title: "Translations",
+                                subtitle: translationToggleSubtitle,
+                                icon: "text.bubble.fill",
+                                color: .blue,
+                                isOn: showTranslationsBinding
+                            )
+
+                            Divider().opacity(0.3)
+
                             // Input languages
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Input Languages")
                                     .font(.system(size: 12, weight: .semibold))
                                     .foregroundStyle(.secondary)
 
-                                Text("Select expected speaker languages to improve accuracy. Leave empty for auto-detect.")
+                                Text(inputLanguageHelpText)
                                     .font(.system(size: 10))
                                     .foregroundStyle(.tertiary)
                                     .fixedSize(horizontal: false, vertical: true)
@@ -107,6 +119,17 @@ struct SettingsView: View {
                         }
                     }
 
+                    // Display Behavior
+                    settingsSection(title: "Display Behavior", icon: "text.alignleft", iconColor: .mint) {
+                        audioToggle(
+                            title: "Follow latest captions",
+                            subtitle: "New captions keep the bottom in view. Turn off when reading earlier transcript text.",
+                            icon: "arrow.down.circle.fill",
+                            color: .mint,
+                            isOn: followLatestCaptionsBinding
+                        )
+                    }
+
                     // Audio Sources
                     settingsSection(title: "Audio Sources", icon: "waveform", iconColor: .green) {
                         VStack(spacing: 10) {
@@ -127,96 +150,56 @@ struct SettingsView: View {
                         }
                     }
 
-                    // Advanced Settings
-                    settingsSection(title: "Advanced", icon: "slider.horizontal.3", iconColor: .gray) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Button(action: {
-                                withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() }
-                            }) {
-                                HStack(spacing: 6) {
-                                    Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text(showAdvanced ? "Hide pipeline settings" : "Show pipeline settings")
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-                            .buttonStyle(.plain)
+                    // Audio Input Filter
+                    settingsSection(title: "Audio Input Filter", icon: "waveform.path.ecg", iconColor: .gray) {
+                        noiseGateControls
+                    }
 
-                            if showAdvanced {
-                                VStack(alignment: .leading, spacing: 18) {
-                                    pipelineDiagram
+                    if appState.selectedEngine == .openAIRealtime {
+                        settingsSection(title: "Realtime Captions", icon: "captions.bubble.fill", iconColor: .blue) {
+                            realtimeCaptionSettings
+                        }
 
-                                    Divider().opacity(0.3)
+                        settingsSection(title: "Live Interpretation", icon: "translate", iconColor: .indigo) {
+                            liveInterpretationSettings
+                        }
 
-                                    if appState.selectedEngine == .openAIRealtime {
-                                        realtimeSettings
-                                    } else {
-                                        sliderRow(
-                                            label: "Fast Draft Interval",
-                                            value: $appState.fastInterval,
-                                            range: 2...10,
-                                            step: 1,
-                                            unit: "s",
-                                            hint: "How often to show a quick draft. Shorter = faster display, more API calls.",
-                                            color: .orange
-                                        )
-                                    }
-
-                                    if appState.selectedEngine == .openAI {
-                                        sliderRow(
-                                            label: "Stitch Pass Interval",
-                                            value: $appState.stitchInterval,
-                                            range: 8...30,
-                                            step: 1,
-                                            unit: "s",
-                                            hint: "How often to re-transcribe a longer window and replace drafts.",
-                                            color: .blue
-                                        )
-                                    }
-
-                                    if appState.selectedEngine == .geminiFlash {
-                                        sliderRow(
-                                            label: "Quality Pass Interval",
-                                            value: $appState.geminiQualityInterval,
-                                            range: 8...30,
-                                            step: 1,
-                                            unit: "s",
-                                            hint: "How often Gemini re-processes a longer audio window to replace drafts.",
-                                            color: .blue
-                                        )
-                                    }
-
-                                    // Noise gate
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            HStack(spacing: 4) {
-                                                Circle()
-                                                    .fill(Color.gray)
-                                                    .frame(width: 8, height: 8)
-                                                Text("Noise Gate Threshold")
-                                                    .font(.system(size: 12, weight: .medium))
-                                            }
-                                            Spacer()
-                                            Text(noiseGateLabel)
-                                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Slider(value: $appState.noiseGateThreshold, in: 0.001...0.05, step: 0.001)
-                                            .tint(.gray)
-                                        HStack {
-                                            Text("Very sensitive")
-                                                .font(.system(size: 10))
-                                                .foregroundStyle(.secondary)
-                                            Spacer()
-                                            Text("Ignore quiet audio")
-                                                .font(.system(size: 10))
-                                                .foregroundStyle(.secondary)
-                                        }
+                        settingsSection(title: "Speaker Recognition", icon: "person.2.wave.2.fill", iconColor: .teal) {
+                            speakerRecognitionSettings
+                        }
+                    } else {
+                        // Legacy Fallback Controls
+                        settingsSection(title: "Legacy Fallback Controls", icon: "slider.horizontal.3", iconColor: .gray) {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button(action: {
+                                    withAnimation(.easeInOut(duration: 0.2)) { showAdvanced.toggle() }
+                                }) {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: showAdvanced ? "chevron.down" : "chevron.right")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                        Text(advancedToggleTitle)
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundStyle(.secondary)
                                     }
                                 }
-                                .transition(.opacity.combined(with: .move(edge: .top)))
+                                .buttonStyle(.plain)
+
+                                if showAdvanced {
+                                    VStack(alignment: .leading, spacing: 18) {
+                                        switch appState.selectedEngine {
+                                        case .openAIRealtime:
+                                            EmptyView()
+                                        case .openAI:
+                                            legacyOpenAIPipelineSettings
+                                        case .geminiFlash:
+                                            geminiFlashPipelineSettings
+                                        case .geminiLive:
+                                            geminiLiveSettings
+                                        }
+                                    }
+                                    .transition(.opacity.combined(with: .move(edge: .top)))
+                                }
                             }
                         }
                     }
@@ -327,7 +310,7 @@ struct SettingsView: View {
 
     private var footer: some View {
         HStack {
-            Text("Changes are saved automatically")
+            Text("Done saves persistent settings")
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
             Spacer()
@@ -358,6 +341,96 @@ struct SettingsView: View {
     }
 
     // MARK: - Pipeline Diagram
+
+    private var advancedToggleTitle: String {
+        let action = showAdvanced ? "Hide" : "Show"
+        switch appState.selectedEngine {
+        case .openAIRealtime:
+            return "\(action) Realtime controls"
+        case .openAI:
+            return "\(action) Whisper + GPT pipeline"
+        case .geminiFlash:
+            return "\(action) Gemini Flash pipeline"
+        case .geminiLive:
+            return "\(action) Gemini Live controls"
+        }
+    }
+
+    private var apiKeyHelpText: String {
+        switch appState.selectedEngine {
+        case .openAIRealtime:
+            return "OpenAI powers the primary Realtime Whisper captions. The same key is also used only if fallback switches to legacy Whisper + GPT."
+        case .openAI:
+            return "OpenAI powers the legacy Whisper + GPT fallback pipeline."
+        case .geminiFlash, .geminiLive:
+            return "Google powers the selected Gemini engine. Keep OpenAI configured if you want Realtime or Whisper + GPT fallback."
+        }
+    }
+
+    private var inputLanguageHelpText: String {
+        if appState.selectedEngine == .openAIRealtime {
+            return "For Realtime Whisper accuracy, pin the expected speaker language when you know it. Leave empty only when you truly need auto-detect."
+        }
+        return "Select expected speaker languages to improve accuracy. Leave empty for auto-detect."
+    }
+
+    private var translationToggleSubtitle: String {
+        if appState.selectedEngine == .openAIRealtime {
+            return "Show subtitle translations; live interpreter also needs one pinned non-target input language."
+        }
+        return "Show translated text when the detected language differs from the output language."
+    }
+
+    private var showTranslationsBinding: Binding<Bool> {
+        Binding(
+            get: { appState.showTranslations },
+            set: { appState.setShowTranslations($0) }
+        )
+    }
+
+    private var followLatestCaptionsBinding: Binding<Bool> {
+        Binding(
+            get: { appState.followLatestCaptions },
+            set: { appState.setFollowLatestCaptions($0) }
+        )
+    }
+
+    private var realtimeInterpreterSessionBinding: Binding<Bool> {
+        Binding(
+            get: { appState.realtimeInterpreterSessionEnabled },
+            set: { appState.setRealtimeInterpreterSessionEnabled($0) }
+        )
+    }
+
+    private var speakerRecognitionModeBinding: Binding<SpeakerRecognitionMode> {
+        Binding(
+            get: { appState.speakerRecognitionMode },
+            set: { appState.setSpeakerRecognitionMode($0) }
+        )
+    }
+
+    private var realtimeInterpreterStatusText: String {
+        guard appState.realtimeInterpreterSessionEnabled else {
+            return "Off: Realtime captions stay on gpt-realtime-whisper only."
+        }
+        guard !appState.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return "Waiting: add an OpenAI API key before starting live interpretation."
+        }
+        guard appState.showTranslations else {
+            return "Waiting: turn on translations before starting an interpreter session."
+        }
+        guard appState.inputLanguages.count == 1, let source = appState.inputLanguages.first else {
+            return "Waiting: pin exactly one input language for live translation."
+        }
+        guard !source.allISOCodes.contains(appState.targetLanguage.isoCode) else {
+            return "Waiting: input and output languages are the same."
+        }
+        return "Ready: audio will use Translate plus a Whisper source-caption sidecar."
+    }
+
+    private var realtimeInterpreterStatusColor: Color {
+        realtimeInterpreterStatusText.hasPrefix("Ready") ? .green : .secondary
+    }
 
     private var pipelineDiagram: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -426,14 +499,20 @@ struct SettingsView: View {
 
     private var noiseGateLabel: String {
         let v = appState.noiseGateThreshold
-        if v <= 0.002 { return "Off (~\(String(format: "%.3f", v)))" }
+        if v <= 0.002 { return "Near off (~\(String(format: "%.3f", v)))" }
         if v <= 0.005 { return "Low (\(String(format: "%.3f", v)))" }
         if v <= 0.015 { return "Med (\(String(format: "%.3f", v)))" }
         return "High (\(String(format: "%.3f", v)))"
     }
 
-    private var realtimeSettings: some View {
+    private var realtimeCaptionSettings: some View {
         VStack(alignment: .leading, spacing: 14) {
+            infoRow(
+                text: "Primary live caption path: gpt-realtime-whisper manual transcription commits. Legacy Whisper + GPT timing does not affect Realtime.",
+                icon: "waveform.badge.mic",
+                color: .blue
+            )
+
             VStack(alignment: .leading, spacing: 6) {
                 Text("Caption Latency")
                     .font(.system(size: 12, weight: .medium))
@@ -448,21 +527,156 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
 
-            Toggle("Automatic fallback to legacy OpenAI", isOn: $appState.realtimeAutomaticFallback)
+            Toggle("Automatic fallback to Whisper + GPT", isOn: $appState.realtimeAutomaticFallback)
+                .font(.system(size: 12, weight: .medium))
+        }
+    }
+
+    private var liveInterpretationSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            infoRow(
+                text: "Live interpretation starts only with translations visible, exactly one pinned input language, and a non-matching output language.",
+                icon: "lock.fill",
+                color: .indigo
+            )
+
+            Toggle("Live translation session", isOn: realtimeInterpreterSessionBinding)
                 .font(.system(size: 12, weight: .medium))
 
-            Toggle("Translated audio playback", isOn: $appState.realtimeTranslatedAudioPlayback)
+            infoRow(
+                text: realtimeInterpreterStatusText,
+                icon: "translate",
+                color: realtimeInterpreterStatusColor
+            )
+
+            Toggle("Translated audio playback (coming later)", isOn: .constant(false))
                 .font(.system(size: 12, weight: .medium))
                 .disabled(true)
 
-            HStack(spacing: 6) {
-                Image(systemName: "info.circle.fill")
+            infoRow(
+                text: "Translated audio stays disabled until meeting-room feedback behavior is proven.",
+                icon: "speaker.slash.fill",
+                color: .secondary
+            )
+        }
+    }
+
+    private var speakerRecognitionSettings: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Picker("Speaker labels", selection: speakerRecognitionModeBinding) {
+                Text(SpeakerRecognitionMode.off.rawValue).tag(SpeakerRecognitionMode.off)
+                Text(SpeakerRecognitionMode.delayedDiarization.rawValue).tag(SpeakerRecognitionMode.delayedDiarization)
+            }
+            .pickerStyle(.segmented)
+
+            infoRow(
+                text: "Off by default. When enabled, finalized system-audio rows may receive delayed labels from gpt-4o-transcribe-diarize; captions and interpretation keep running while labels process.",
+                icon: "person.crop.circle.badge.clock",
+                color: .teal
+            )
+
+            infoRow(
+                text: "Privacy: only bounded non-exported audio windows are eligible, and no audio is sent while this mode is Off.",
+                icon: "lock.shield.fill",
+                color: .secondary
+            )
+        }
+    }
+
+    private var legacyOpenAIPipelineSettings: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            infoRow(
+                text: "Legacy Whisper + GPT uses fast drafts plus a longer stitch pass. These intervals apply only to this fallback engine.",
+                icon: "clock.arrow.circlepath",
+                color: .orange
+            )
+            pipelineDiagram
+            sliderRow(
+                label: "Fast Draft Interval",
+                value: $appState.fastInterval,
+                range: 2...10,
+                step: 1,
+                unit: "s",
+                hint: "How often to show a quick legacy Whisper draft. Shorter = faster display, more API calls.",
+                color: .orange
+            )
+            sliderRow(
+                label: "Stitch Pass Interval",
+                value: $appState.stitchInterval,
+                range: 8...30,
+                step: 1,
+                unit: "s",
+                hint: "How often legacy Whisper re-transcribes a longer window and replaces drafts.",
+                color: .blue
+            )
+        }
+    }
+
+    private var geminiFlashPipelineSettings: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            infoRow(
+                text: "Gemini Flash uses fast drafts plus a quality pass. This does not change Realtime Whisper.",
+                icon: "sparkles",
+                color: .blue
+            )
+            pipelineDiagram
+            sliderRow(
+                label: "Fast Draft Interval",
+                value: $appState.fastInterval,
+                range: 2...10,
+                step: 1,
+                unit: "s",
+                hint: "How often to show a quick Gemini draft. Shorter = faster display, more API calls.",
+                color: .orange
+            )
+            sliderRow(
+                label: "Quality Pass Interval",
+                value: $appState.geminiQualityInterval,
+                range: 8...30,
+                step: 1,
+                unit: "s",
+                hint: "How often Gemini re-processes a longer audio window to replace drafts.",
+                color: .blue
+            )
+        }
+    }
+
+    private var geminiLiveSettings: some View {
+        infoRow(
+            text: "Gemini Live is a streaming alternate. It does not use the legacy fast/stitch interval controls.",
+            icon: "bolt.horizontal.circle.fill",
+            color: .purple
+        )
+    }
+
+    private var noiseGateControls: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                HStack(spacing: 4) {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.gray)
+                    Text("Silence Filter")
+                        .font(.system(size: 12, weight: .medium))
+                }
+                Spacer()
+                Text(noiseGateLabel)
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            Text("Applies before every engine: Realtime, Whisper + GPT, and Gemini.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Slider(value: $appState.noiseGateThreshold, in: 0.001...0.05, step: 0.001)
+                .tint(.gray)
+            HStack {
+                Text("Keep soft speech")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                Text("Realtime uses separate source-aware sessions for mic and system audio. Translated audio stays disabled until feedback behavior is proven.")
+                Spacer()
+                Text("Skip more silence")
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
@@ -502,6 +716,19 @@ struct SettingsView: View {
     }
 
     // MARK: - Components
+
+    private func infoRow(text: String, icon: String, color: Color) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(color)
+                .frame(width: 14, alignment: .center)
+            Text(text)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
 
     @ViewBuilder
     private func settingsSection<Content: View>(

@@ -125,7 +125,7 @@ The app uses **post-transcription deduplication** via character-bigram Dice coef
 - **Buffer cap:** Audio buffers are capped at ~60s (`maxBufferBytes`) to prevent unbounded memory growth.
 - **Entry cap:** Maximum 500 entries in memory (`maxEntries`). Oldest confirmed entries are trimmed.
 - **Circuit breaker:** After 5 consecutive errors, the pipeline pauses for 10 seconds before retrying.
-- **Noise gate:** Audio chunks below `noiseGateThreshold` RMS energy are silently skipped.
+- **Noise gate:** Audio chunks below `noiseGateThreshold` RMS energy are silently skipped before any engine route. Keep this presented as shared audio input filtering, not as a Realtime model parameter.
 
 **Rule:** Do not remove these safety guards. Long meetings can run for hours.
 
@@ -211,21 +211,28 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 - `OpenAIRealtime*Service` files own WebSocket setup and raw event parsing.
 - `RealtimeEventReducer` accumulates partial deltas by `(source, itemID)`.
 - `RealtimeUtteranceMerger` merges nearby final transport chunks from the same source/language into readable dialog rows. Do not treat every committed realtime audio chunk as its own permanent sentence.
+- Rolling realtime row merges use `TranscriptionEntry.realtimeLastMergedAt` so the merge window follows adjacent provider chunk gaps while the visible row keeps its original timestamp.
 - `AppState` confirms entries through the existing empty, hallucination, overlap, echo dedup, language, and translation gates.
 
 **Cost/privacy gate:**
-- Never start or maintain `gpt-realtime-translate` unless translation UI is visible, translated-audio playback is enabled, and the app knows the source language is different from the target.
-- Translation-off and same-language modes must stay on the `gpt-realtime-2` realtime captions/dialog path, not a translation session.
-- Auto-detect input stays Realtime-2 caption-first. For text-only OpenAI Realtime with a pinned non-same input language, have Realtime-2 produce the target text directly; do not layer a second legacy GPT translation call on agent finals.
+- Never start or maintain `gpt-realtime-translate` unless translation UI is visible, the explicit realtime interpreter session gate is enabled, and the app knows the source language is different from the target.
+- Translation-off and same-language modes must stay on the `gpt-realtime-whisper` realtime captions path, not a translation session.
+- Auto-detect input stays `gpt-realtime-whisper` caption-first. For text-only OpenAI Realtime with a pinned non-same input language, use the caption-first path unless the explicit interpreter gate starts `gpt-realtime-translate`.
+- Translated audio playback is still disabled/coming-later; do not let an old saved preference send translated audio to speakers.
 - Log realtime audio duration cost only after an audio chunk is accepted for sending by a ready session.
 
+**Settings UI:**
+- When `OpenAI Realtime (Recommended)` is selected, Settings must show Realtime controls and should not show legacy Whisper + GPT fast/stitch pipeline sliders or diagrams.
+- Put past Whisper/GPT timing setup under the `OpenAI Whisper + GPT` fallback engine. Put Gemini quality timing under Gemini Flash. Label Gemini Live as an alternate/fallback.
+
 **Protocol notes verified 2026-05-10:**
-- Main OpenAI Realtime captions/dialog route: `gpt-realtime-2` over `/v1/realtime`, with `reasoning.effort` defaulting to low for latency.
+- Main OpenAI Realtime caption-only route: `gpt-realtime-whisper` over the transcription session endpoint. Use `gpt-realtime-2` for dialog understanding, assistant actions, summaries, tool calls, or other voice-agent workflows, with `reasoning.effort` defaulting to low for latency.
 - `OpenAIRealtimeAgentService` must parse both streaming text events and nested final response containers; missing `response.done`/`response.output_item.done` parsing can look like "session active, cost moving, no captions." Nested finals must reconcile by inner `item.id` / `response.output[].id`, not only top-level `response_id`.
 - Transcription WebSocket URL: `wss://api.openai.com/v1/realtime?intent=transcription`.
 - Put `gpt-realtime-whisper` in `session.update`, not in the transcription URL query.
 - Do not configure `server_vad` turn detection for `gpt-realtime-whisper`; set manual turn detection (`null`) and commit each app audio chunk explicitly after append.
 - Realtime capture must use continuous timer chunks based on `RealtimeCaptionLatencyPreset.realtimeCaptureChunkDuration`; do not let VAD hold active speech until silence.
+- Manual Whisper commits should carry 300ms of same-source boundary context via `RealtimeAudioBoundaryContext`; keep microphone and system-audio tails separate, clear the tail on low-energy chunks, and do not prepend the tail to the `gpt-realtime-translate` primary stream.
 - Non-empty realtime partial rows are user-visible state. On stop/cleanup, collect them as final candidates and pass them through the normal confirmation/filter gates rather than deleting them as disposable legacy drafts. Do not auto-promote stale partials while recording unless late-final replacement is explicitly handled.
 - Translation WebSocket URL: `/v1/realtime/translations?model=gpt-realtime-translate`.
 - A realtime session is ready only after `session.updated`; do not send user audio while still merely connected.
@@ -235,3 +242,53 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 - Use `tools/realtime-foundation/realtime-foundation probe --mode ...` for no-audio model checks.
 - Audio probes require `--i-understand-audio-is-sent-to-openai` and must use synthetic or non-private fixtures.
 - After any realtime code change, run `./build_app.sh`, `tools/realtime-foundation/tests/realtime_core_smoke.swift`, and at least synthetic OpenAI realtime transcription/translation probes when safe.
+
+<!-- gitnexus:start -->
+# GitNexus — Code Intelligence
+
+This project is indexed by GitNexus as **MeetingTranslatorPro** (2002 symbols, 4696 relationships, 139 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+
+> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+
+## Always Do
+
+- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
+- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
+- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
+- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
+- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+
+## Never Do
+
+- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
+- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
+- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
+- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+
+## Resources
+
+| Resource | Use for |
+|----------|---------|
+| `gitnexus://repo/MeetingTranslatorPro/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/MeetingTranslatorPro/clusters` | All functional areas |
+| `gitnexus://repo/MeetingTranslatorPro/processes` | All execution flows |
+| `gitnexus://repo/MeetingTranslatorPro/process/{name}` | Step-by-step execution trace |
+
+## CLI
+
+| Task | Read this skill file |
+|------|---------------------|
+| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
+| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
+| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
+| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
+| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
+| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
+| Work in the Managers area (100 symbols) | `.claude/skills/generated/managers/SKILL.md` |
+| Work in the OpenAIRealtime area (84 symbols) | `.claude/skills/generated/openairealtime/SKILL.md` |
+| Work in the Realtime-foundation area (25 symbols) | `.claude/skills/generated/realtime-foundation/SKILL.md` |
+| Work in the Services area (21 symbols) | `.claude/skills/generated/services/SKILL.md` |
+| Work in the Models area (4 symbols) | `.claude/skills/generated/models/SKILL.md` |
+| Work in the Views area (3 symbols) | `.claude/skills/generated/views/SKILL.md` |
+
+<!-- gitnexus:end -->

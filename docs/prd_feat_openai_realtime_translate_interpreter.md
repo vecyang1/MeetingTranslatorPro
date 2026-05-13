@@ -102,10 +102,10 @@ As a user in a multilingual meeting, I want translated text to appear while the 
 
 Acceptance criteria:
 
-- [ ] With a pinned source language different from the output language, interpreter mode opens `gpt-realtime-translate`.
-- [ ] Translated partial text appears before the synthetic long utterance ends.
-- [ ] Final translated text replaces or settles the partial without duplicating rows.
-- [ ] The status clearly says realtime translation is active.
+- [x] With a pinned source language different from the output language, interpreter mode opens `gpt-realtime-translate`.
+- [x] Translated partial text appears before the synthetic long utterance ends.
+- [x] Final translated text replaces or settles the partial without duplicating rows.
+- [x] The status clearly says realtime translation is active.
 
 ### US-M7-002: Source Caption and Translation Stay Together
 
@@ -113,10 +113,10 @@ As a user, I want to see what was heard and what it means, attached to one reada
 
 Acceptance criteria:
 
-- [ ] `gpt-realtime-whisper` sidecar source captions attach to the same source row as `gpt-realtime-translate` output.
-- [ ] Output-first events do not create orphan translation rows.
-- [ ] Source-first events show source text while waiting for translation.
-- [ ] Export includes source text, translated text, language, source, and timestamp.
+- [x] `gpt-realtime-whisper` sidecar source captions attach to the same source row as `gpt-realtime-translate` output.
+- [x] Output-first events do not create orphan translation rows.
+- [x] Source-first events show source text while waiting for translation.
+- [x] Export includes source text, translated text, language, source, and timestamp.
 
 ### US-M7-003: Explicit Cost Gates
 
@@ -124,11 +124,11 @@ As a user, I do not want a paid translation session to start just because transl
 
 Acceptance criteria:
 
-- [ ] `showTranslations == false` never starts `gpt-realtime-translate`.
-- [ ] Auto-detect or multiple input languages never starts `gpt-realtime-translate`.
-- [ ] Same-language source and target never starts `gpt-realtime-translate`.
-- [ ] Interpreter-session-off never starts `gpt-realtime-translate`.
-- [ ] Turning any gate off during recording restarts or downgrades the route safely.
+- [x] `showTranslations == false` never starts `gpt-realtime-translate`.
+- [x] Auto-detect or multiple input languages never starts `gpt-realtime-translate`.
+- [x] Same-language source and target never starts `gpt-realtime-translate`.
+- [x] Interpreter-session-off never starts `gpt-realtime-translate`.
+- [x] Turning any gate off during recording restarts or downgrades the route safely.
 
 ### US-M7-004: Translated Audio Is Honest
 
@@ -136,10 +136,10 @@ As a user, I should not see a translated-audio option that looks usable if it ca
 
 Acceptance criteria:
 
-- [ ] Translated audio playback remains disabled in UI.
-- [ ] Runtime forces translated audio playback off even if an old saved preference says true.
-- [ ] `session.output_audio.delta` is ignored unless a future PRD explicitly enables safe playback.
-- [ ] Settings copy says text interpretation is available, audio playback is not yet meeting-room safe.
+- [x] Translated audio playback remains disabled in UI.
+- [x] Runtime forces translated audio playback off even if an old saved preference says true.
+- [x] `session.output_audio.delta` is ignored unless a future PRD explicitly enables safe playback.
+- [x] Settings copy says text interpretation is available, audio playback is not yet meeting-room safe.
 
 ### US-M7-005: Runtime Recovery Does Not Lie
 
@@ -147,10 +147,10 @@ As a user, I want transient TLS/WebSocket failures to recover, and permanent set
 
 Acceptance criteria:
 
-- [ ] Transient startup failures retry through `RealtimeConnectionRecoveryPolicy`.
-- [ ] Permanent auth/quota/model-access failures do not spin in retry loops.
-- [ ] Caption-only fallback happens only after retry exhaustion when automatic fallback is enabled.
-- [ ] UI does not claim interpreter mode is active after route fallback.
+- [x] Transient startup failures retry through `RealtimeConnectionRecoveryPolicy`.
+- [x] Permanent auth/quota/model-access failures do not spin in retry loops.
+- [x] Caption-only fallback happens only after retry exhaustion when automatic fallback is enabled.
+- [x] UI does not claim interpreter mode is active after route fallback.
 
 ---
 
@@ -362,6 +362,11 @@ Required language pairs:
 - one code-switching fixture;
 - one long utterance fixture that proves partial translated text before utterance end.
 
+2026-05-13 probe status: synthetic provider probes were attempted for `gpt-realtime-whisper`,
+`gpt-realtime-translate`, and `gpt-realtime-2`; all returned HTTP 401 for the saved placeholder
+key, so provider verification is blocked on a valid `OPENAI_API_KEY` and is not treated as
+completion proof.
+
 ### 9.3 Installed-App E2E
 
 Completion requires at least one installed-app path:
@@ -402,17 +407,17 @@ Update these files in the same implementation pass:
 
 This PRD is complete only when:
 
-- [ ] `gpt-realtime-translate` is the only realtime interpreter model.
-- [ ] `gpt-realtime-whisper` is clearly documented and presented only as source-caption sidecar in interpreter mode.
-- [ ] Interpreter route starts only under explicit gates.
-- [ ] Translated partial text appears during a long utterance before speech ends.
-- [ ] Source and translated text attach to the same row in both source-first and output-first event order.
-- [ ] Translated audio playback is disabled in UI and runtime.
-- [ ] Settings no longer misleads users with legacy Whisper + GPT controls in the Realtime section.
-- [ ] Cost tracking separates caption and translation lanes.
-- [ ] Core smoke, app synthetic E2E, provider probes, build, and installed-app verification pass or blockers are documented.
-- [ ] Docs and changelog are updated.
-- [ ] GitNexus detect-changes is reviewed for unexpected symbol/flow changes.
+- [x] `gpt-realtime-translate` is the only realtime interpreter model.
+- [x] `gpt-realtime-whisper` is clearly documented and presented only as source-caption sidecar in interpreter mode.
+- [x] Interpreter route starts only under explicit gates.
+- [x] Translated partial text appears during a long utterance before speech ends.
+- [x] Source and translated text attach to the same row in both source-first and output-first event order.
+- [x] Translated audio playback is disabled in UI and runtime.
+- [x] Settings no longer misleads users with legacy Whisper + GPT controls in the Realtime section.
+- [x] Cost tracking separates caption and translation lanes.
+- [x] Core smoke, app synthetic E2E, provider probes, build, and installed-app verification pass or blockers are documented.
+- [x] Docs and changelog are updated.
+- [x] GitNexus detect-changes is reviewed for unexpected symbol/flow changes.
 
 ---
 

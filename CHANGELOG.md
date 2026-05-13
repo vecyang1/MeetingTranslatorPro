@@ -4,6 +4,9 @@
 
 ### Added
 
+- Implemented the local M7 live interpreter route with `gpt-realtime-translate` plus a `gpt-realtime-whisper` source-caption sidecar, gated by visible translations, exactly one pinned source language, non-same source/target languages, and the explicit interpreter-session toggle.
+- Added off-by-default delayed speaker-recognition metadata and matching support: finalized system-audio rows can receive later diarization labels without rewriting transcript text, while ambiguous matches are ignored.
+- Added Settings `Realtime Captions`, `Live Interpretation`, and `Speaker Recognition` sections so realtime caption controls, interpreter prerequisites, and delayed-label privacy/cost disclosures are separate.
 - Added the canonical `docs/prd_feat_openai_realtime_translate_interpreter.md` PRD for true same-time interpretation with `gpt-realtime-translate`; `gpt-realtime-whisper` is documented only as a source-caption audit sidecar in that mode.
 - Added `docs/prd_feat_realtime_settings_runtime_clarity.md` so the Settings panel can be implemented around realtime captions, live interpretation prerequisites, display behavior, and fallback controls without misleading legacy Whisper + GPT timing.
 - Added `docs/prd_feat_realtime_speaker_recognition_sidecar.md` for a later delayed speaker-label sidecar using `gpt-4o-transcribe-diarize`, explicitly outside the realtime translation core.
@@ -12,6 +15,20 @@
 
 - Marked the older realtime translation PRD as historical/superseded so it is not mistaken for proof that the installed app has shipped user-facing same-time interpretation.
 - Updated `docs/PRD.md`, `docs/API.md`, and the OpenAI realtime foundation skill to point future agents at the new PRD split and the `gpt-realtime-translate` interpreter route.
+- Updated the realtime foundation CLI so `recommend --task interpreter` requires `--pinned-source-language` and `--interpreter-session`; translated audio remains a deprecated alias and is no longer the conceptual gate.
+
+### Fixed
+
+- Fixed the pure realtime router so auto-detect and multi-source-language modes cannot start hidden `gpt-realtime-translate` spend even if the interpreter toggle is enabled.
+- Fixed output-first translation rebinding so a temporary translation-only row is removed after the paired Whisper source-caption row arrives.
+- Fixed translation-mode status presentation so a later sidecar caption socket cannot downgrade the visible runtime state from translation active to captions active.
+
+### Verified
+
+- Local smokes currently pass for realtime core, synthetic realtime app E2E, Settings copy, Settings input-filter placement, transcript follow behavior, language detection, app-logo UI, app-icon visual checks, and `./build_app.sh`.
+- Installed `/Applications/MeetingTranslator.app` launches with bundle id `com.meetingtranslator.app`, version `1.0.0`, and the expected Apple Development signature; installed binary strings include the new realtime Settings sections.
+- GitNexus `detect_changes` was reviewed for the full diff and reports critical risk in the expected realtime/AppState/routing/reducer/cost flows.
+- OpenAI provider probes are blocked until a valid `OPENAI_API_KEY` is installed; the saved app default currently returns 401 and must not be used as completion proof.
 
 ## 2026-05-12
 

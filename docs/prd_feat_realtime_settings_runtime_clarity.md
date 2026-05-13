@@ -77,9 +77,9 @@ As a user, I want Settings to tell me whether the app is captioning or interpret
 
 Acceptance criteria:
 
-- [ ] Realtime section labels caption mode and interpreter mode separately.
-- [ ] The interpreter model is described as `gpt-realtime-translate` in advanced detail, not as Whisper.
-- [ ] Whisper is described only as source captions / audit trail in interpreter mode.
+- [x] Realtime section labels caption mode and interpreter mode separately.
+- [x] The interpreter model is described as `gpt-realtime-translate` in advanced detail, not as Whisper.
+- [x] Whisper is described only as source captions / audit trail in interpreter mode.
 
 ### US-SET-002: I Know Why Interpreter Mode Is Waiting
 
@@ -87,11 +87,11 @@ As a user, I want one actionable reason when live interpretation cannot start.
 
 Acceptance criteria:
 
-- [ ] Missing OpenAI key shows key setup reason.
-- [ ] Auto-detect input shows "pin one source language."
-- [ ] Same language shows "source and output are the same."
-- [ ] Translations off shows "turn on translations."
-- [ ] Interpreter off shows "turn on live interpreter session."
+- [x] Missing OpenAI key shows key setup reason.
+- [x] Auto-detect input shows "pin one source language."
+- [x] Same language shows "source and output are the same."
+- [x] Translations off shows "turn on translations."
+- [x] Interpreter off shows "turn on live interpreter session."
 
 ### US-SET-003: I Do Not See Controls That Do Nothing
 
@@ -99,9 +99,9 @@ As a user, I should not see fast/stitch intervals under Realtime if they affect 
 
 Acceptance criteria:
 
-- [ ] `fastInterval` and `stitchInterval` appear only when `OpenAI Whisper + GPT` is selected.
-- [ ] Gemini quality interval appears only when `Gemini 2.5 Flash` is selected.
-- [ ] Realtime latency uses the Realtime caption preset only.
+- [x] `fastInterval` and `stitchInterval` appear only when `OpenAI Whisper + GPT` is selected.
+- [x] Gemini quality interval appears only when `Gemini 2.5 Flash` is selected.
+- [x] Realtime latency uses the Realtime caption preset only.
 
 ### US-SET-004: Display Behavior Is Separate
 
@@ -109,9 +109,9 @@ As a user reading earlier transcript text, I want a clear follow-latest option t
 
 Acceptance criteria:
 
-- [ ] `Follow latest captions` appears under Display Behavior.
-- [ ] Toggling it persists only the display preference.
-- [ ] Toggling it does not call the full `saveSettings()` path or restart sessions.
+- [x] `Follow latest captions` appears under Display Behavior.
+- [x] Toggling it persists only the display preference.
+- [x] Toggling it does not call the full `saveSettings()` path or restart sessions.
 
 ---
 
@@ -230,13 +230,13 @@ Required smoke tests:
 
 ## 9. Done Means
 
-- [ ] Realtime Settings no longer mixes legacy timing controls with realtime route controls.
-- [ ] Live interpretation clearly names `gpt-realtime-translate` as the interpreter model.
-- [ ] Whisper is presented only as source-caption sidecar in interpreter mode.
-- [ ] All interpreter prerequisites are visible and testable.
-- [ ] Translated audio playback remains disabled and honest.
-- [ ] Display follow behavior is separate and does not restart sessions.
-- [ ] Smoke tests and installed-app Settings inspection pass.
+- [x] Realtime Settings no longer mixes legacy timing controls with realtime route controls.
+- [x] Live interpretation clearly names `gpt-realtime-translate` as the interpreter model.
+- [x] Whisper is presented only as source-caption sidecar in interpreter mode.
+- [x] All interpreter prerequisites are visible and testable.
+- [x] Translated audio playback remains disabled and honest.
+- [x] Display follow behavior is separate and does not restart sessions.
+- [x] Smoke tests and installed-app Settings inspection pass.
 
 ---
 

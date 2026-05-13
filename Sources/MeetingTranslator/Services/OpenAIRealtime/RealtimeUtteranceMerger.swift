@@ -14,8 +14,11 @@ enum RealtimeUtteranceMerger {
         guard previous.source == nextSource else { return false }
         guard !nextText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
 
-        let elapsed = nextTimestamp.timeIntervalSince(previous.timestamp)
-        guard elapsed >= 0, elapsed <= maxDuration else { return false }
+        let elapsed = nextTimestamp.timeIntervalSince(mergeComparisonTimestamp(for: previous))
+        let punctuationGrace: TimeInterval = endsWithTerminalPunctuation(previous.originalText)
+            ? maxDuration * 0.75
+            : 0
+        guard elapsed >= 0, elapsed <= maxDuration + punctuationGrace else { return false }
         guard previous.originalText.count + nextText.count <= maxCharacters else { return false }
 
         let previousLanguage = previous.detectedLanguage?.lowercased()
@@ -25,6 +28,43 @@ enum RealtimeUtteranceMerger {
         }
 
         return mergedText(previous: previous.originalText, next: nextText) != nil
+    }
+
+    static func shouldDropUnstableShortFragment(_ text: String, language: String?) -> Bool {
+        let normalized = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return true }
+
+        let contentScalars = normalized.unicodeScalars.filter { scalar in
+            CharacterSet.alphanumerics.contains(scalar)
+                || isCJK(scalar)
+                || (scalar.value >= 0xAC00 && scalar.value <= 0xD7AF)
+        }
+        let contentCount = contentScalars.count
+        let lowered = normalized.lowercased()
+        let languageCode = language?.lowercased()
+
+        if contentCount <= 1 { return true }
+        if contentCount <= 4 {
+            let unstableFillers: Set<String> = [
+                "啊", "嗯", "呃", "哦", "哎",
+                "あ", "え", "はい", "あります",
+                "아", "어", "뭐야",
+                "uh", "um", "ah", "hmm", "ok", "okay"
+            ]
+            if unstableFillers.contains(lowered) { return true }
+            if languageCode == "ja" || languageCode == "ko" {
+                return true
+            }
+        }
+
+        let suspiciousEnglishFragments: Set<String> = [
+            "give me a wipe.",
+            "give me a wipe",
+            "wipe."
+        ]
+        if suspiciousEnglishFragments.contains(lowered) { return true }
+
+        return false
     }
 
     static func mergedText(previous: String, next: String) -> String? {
@@ -73,7 +113,7 @@ enum RealtimeUtteranceMerger {
             return false
         }
 
-        let elapsed = nextTimestamp.timeIntervalSince(previous.timestamp)
+        let elapsed = nextTimestamp.timeIntervalSince(mergeComparisonTimestamp(for: previous))
         guard elapsed >= 0, elapsed <= maxDuration else { return false }
         guard previous.originalText.count + rhs.count <= maxCharacters else { return false }
 
@@ -112,6 +152,32 @@ enum RealtimeUtteranceMerger {
             latestText = current.originalText
             let previousIndex = entries.index(before: index)
             let previous = entries[previousIndex]
+
+            if shouldDropUnstableShortFragment(
+                current.originalText,
+                language: current.detectedLanguage
+            ), previous.source == source,
+               previous.realtimeItemID != nil,
+               !previous.isDraft,
+               current.timestamp.timeIntervalSince(mergeComparisonTimestamp(for: previous)) <= maxMergeDuration {
+                entries.remove(at: index)
+                latestText = previous.originalText
+                continue
+            }
+
+            if shouldDropUnstableShortFragment(
+                previous.originalText,
+                language: previous.detectedLanguage
+            ), previous.source == source,
+               previous.realtimeItemID != nil,
+               !previous.isDraft,
+               current.timestamp.timeIntervalSince(mergeComparisonTimestamp(for: previous)) <= maxMergeDuration {
+                entries.remove(at: previousIndex)
+                latestText = current.originalText
+                index = max(1, previousIndex)
+                continue
+            }
+
             guard previous.source == source,
                   previous.realtimeItemID != nil,
                   !previous.isDraft else {
@@ -156,6 +222,7 @@ enum RealtimeUtteranceMerger {
                 ? previous.speakerLabel
                 : current.speakerLabel
             entries[previousIndex].isTranslating = previous.isTranslating || current.isTranslating
+            entries[previousIndex].realtimeLastMergedAt = current.realtimeLastMergedAt ?? current.timestamp
             entries.remove(at: index)
             latestText = merged
         }
@@ -177,6 +244,25 @@ enum RealtimeUtteranceMerger {
         return merged
     }
 
+    static func applyMergedFinal(
+        to entry: inout TranscriptionEntry,
+        originalText: String,
+        translatedText: String?,
+        detectedLanguage: String?,
+        speakerLabel: String?,
+        isTranslating: Bool,
+        mergedAt: Date
+    ) {
+        entry.originalText = originalText
+        entry.translatedText = translatedText
+        entry.detectedLanguage = detectedLanguage
+        entry.isTranslating = isTranslating
+        entry.speakerLabel = speakerLabel
+        entry.isDraft = false
+        entry.isQualityResult = false
+        entry.realtimeLastMergedAt = mergedAt
+    }
+
     private static func mergedOptionalText(previous: String?, next: String?) -> String? {
         guard let next, !next.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return previous
@@ -194,6 +280,10 @@ enum RealtimeUtteranceMerger {
         if right.allSatisfy(isCJK) { return true }
         let start = left.count - right.count
         return start == 0 || isBoundary(left[start - 1])
+    }
+
+    private static func mergeComparisonTimestamp(for entry: TranscriptionEntry) -> Date {
+        entry.realtimeLastMergedAt ?? entry.timestamp
     }
 
     private static func longestSuffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
@@ -230,6 +320,13 @@ enum RealtimeUtteranceMerger {
         if isCJK(last) || isCJK(first) { return false }
         if isLeadingPunctuation(first) || isTrailingPunctuation(last) { return false }
         return true
+    }
+
+    private static func endsWithTerminalPunctuation(_ text: String) -> Bool {
+        guard let scalar = text.trimmingCharacters(in: .whitespacesAndNewlines).unicodeScalars.last else {
+            return false
+        }
+        return CharacterSet(charactersIn: ".!?。！？").contains(scalar)
     }
 
     private static func isCJK(_ scalar: UnicodeScalar) -> Bool {

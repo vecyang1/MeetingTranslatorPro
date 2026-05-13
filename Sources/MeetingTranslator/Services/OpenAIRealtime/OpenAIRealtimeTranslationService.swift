@@ -3,8 +3,14 @@ import Foundation
 final class OpenAIRealtimeTranslationService: OpenAIRealtimeWebSocketService, @unchecked Sendable {
     private let model = OpenAIRealtimeModel.realtimeTranslate.rawValue
     private var currentTurnID = "translation-\(UUID().uuidString)"
+    private let translatedAudioPlaybackEnabled: Bool
 
     override var sessionMode: RealtimeRouteMode { .translation }
+
+    init(apiKey: String, source: TranscriptionEntry.AudioSource, translatedAudioPlaybackEnabled: Bool = false) {
+        self.translatedAudioPlaybackEnabled = translatedAudioPlaybackEnabled
+        super.init(apiKey: apiKey, source: source)
+    }
 
     func connect(targetLanguageCode: String) async throws {
         guard let url = URL(string: "wss://api.openai.com/v1/realtime/translations?model=\(model)") else {
@@ -53,7 +59,9 @@ final class OpenAIRealtimeTranslationService: OpenAIRealtimeWebSocketService, @u
             onEvent?(.finalTranslation(source: source, itemID: itemID, text: text, language: nil, timestamp: Date()))
             rotateTurnIDIfFallbackID(itemID)
         case "session.output_audio.delta":
-            if let delta = event["delta"] as? String, let data = Data(base64Encoded: delta) {
+            if translatedAudioPlaybackEnabled,
+               let delta = event["delta"] as? String,
+               let data = Data(base64Encoded: delta) {
                 onEvent?(.translatedAudioChunk(source: source, itemID: itemID, data: data, timestamp: Date()))
             }
         case "session.output_audio.done":

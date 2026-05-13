@@ -4,7 +4,8 @@ struct RealtimeModelRouter {
     func route(
         showTranslations: Bool,
         sameLanguage: Bool,
-        wantsTranslatedAudio: Bool,
+        hasPinnedSourceLanguage: Bool,
+        wantsInterpreterSession: Bool,
         wantsAgent: Bool
     ) -> RealtimeRouteDecision {
         if wantsAgent {
@@ -13,26 +14,29 @@ struct RealtimeModelRouter {
                 model: OpenAIRealtimeModel.realtimeAgent.rawValue,
                 endpointPath: "/v1/realtime",
                 reason: "Voice assistant/tool workflow requested.",
-                shouldStartTranslationSession: false
+                shouldStartTranslationSession: false,
+                shouldStartSourceCaptionSession: false
             )
         }
 
-        if showTranslations, !sameLanguage, wantsTranslatedAudio {
+        if showTranslations, !sameLanguage, hasPinnedSourceLanguage, wantsInterpreterSession {
             return RealtimeRouteDecision(
                 mode: .translation,
                 model: OpenAIRealtimeModel.realtimeTranslate.rawValue,
                 endpointPath: "/v1/realtime/translations",
-                reason: "Live translated-audio route because translation is visible and source differs from target.",
-                shouldStartTranslationSession: true
+                reason: "Live interpreter route because translation is visible, source differs from target, and interpreter mode is enabled.",
+                shouldStartTranslationSession: true,
+                shouldStartSourceCaptionSession: true
             )
         }
 
         return RealtimeRouteDecision(
-            mode: .agent,
-            model: OpenAIRealtimeModel.realtimeAgent.rawValue,
+            mode: .transcription,
+            model: OpenAIRealtimeModel.realtimeWhisper.rawValue,
             endpointPath: "/v1/realtime",
-            reason: "Default live captions route uses GPT Realtime 2 for lower-latency dialog understanding.",
-            shouldStartTranslationSession: false
+            reason: "Caption-first route uses GPT Realtime Whisper for transcript deltas while speech is still active.",
+            shouldStartTranslationSession: false,
+            shouldStartSourceCaptionSession: false
         )
     }
 }

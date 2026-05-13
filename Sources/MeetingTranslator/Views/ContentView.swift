@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     @State private var isSettingsPresented = false
     @State private var isHoveringRecord = false
+    private let transcriptBottomID = "transcript-bottom-anchor"
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,25 +30,43 @@ struct ContentView: View {
         }
     }
 
+    private var appBrandNSImage: NSImage {
+        NSImage(named: "AppIcon") ?? NSApp.applicationIconImage
+    }
+
+    private func appBrandIcon(size: CGFloat, cornerRadius: CGFloat) -> some View {
+        Image(nsImage: appBrandNSImage)
+            .resizable()
+            .interpolation(.high)
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .shadow(color: Color.black.opacity(0.12), radius: 3, x: 0, y: 1)
+    }
+
+    private var transcriptScrollSignature: String {
+        guard !appState.entries.isEmpty else { return "empty" }
+        return appState.entries.map { entry in
+            [
+                entry.id.uuidString,
+                String(entry.originalText.count),
+                String(entry.translatedText?.count ?? 0),
+                entry.isDraft ? "draft" : "final"
+            ].joined(separator: ":")
+        }.joined(separator: "|")
+    }
+
+    private func scrollTranscriptToBottom(_ proxy: ScrollViewProxy) {
+        DispatchQueue.main.async {
+            proxy.scrollTo(transcriptBottomID, anchor: .bottom)
+        }
+    }
+
     // MARK: - Title Bar
 
     private var titleBar: some View {
         HStack(spacing: 10) {
-            // App icon
-            ZStack {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue, Color.purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 34, height: 34)
-                Image(systemName: "waveform.and.mic")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
+            appBrandIcon(size: 34, cornerRadius: 10)
 
             // Title + status
             VStack(alignment: .leading, spacing: 3) {
@@ -291,15 +310,21 @@ struct ContentView: View {
                                 )
                                 .id(entry.id)
                             }
+                            Color.clear
+                                .frame(height: 1)
+                                .id(transcriptBottomID)
                         }
                         .padding(.vertical, 8)
                         .padding(.horizontal, 4)
                     }
-                    .onChange(of: appState.entries.count) { _, _ in
-                        if let lastID = appState.entries.last?.id {
-                            withAnimation(.easeOut(duration: 0.3)) {
-                                proxy.scrollTo(lastID, anchor: .bottom)
-                            }
+                    .onChange(of: transcriptScrollSignature) { _, _ in
+                        if appState.followLatestCaptions {
+                            scrollTranscriptToBottom(proxy)
+                        }
+                    }
+                    .onChange(of: appState.followLatestCaptions) { _, shouldFollow in
+                        if shouldFollow {
+                            scrollTranscriptToBottom(proxy)
                         }
                     }
                 }
@@ -313,24 +338,7 @@ struct ContentView: View {
             Spacer()
 
             ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [Color.blue.opacity(0.08), Color.purple.opacity(0.08)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 80, height: 80)
-                Image(systemName: "waveform.and.mic")
-                    .font(.system(size: 32, weight: .light))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [.blue.opacity(0.5), .purple.opacity(0.5)],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
+                appBrandIcon(size: 78, cornerRadius: 18)
             }
 
             VStack(spacing: 8) {
@@ -514,6 +522,8 @@ struct ContentView: View {
 
             // Action buttons
             HStack(spacing: 6) {
+                followLatestCaptionsButton
+
                 // Toggle translations
                 Button(action: {
                     appState.setShowTranslations(!appState.showTranslations)
@@ -560,6 +570,23 @@ struct ContentView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(VisualEffectBackground(material: .contentBackground, blendingMode: .withinWindow))
+    }
+
+    private var followLatestCaptionsButton: some View {
+        Button(action: {
+            appState.setFollowLatestCaptions(!appState.followLatestCaptions)
+        }) {
+            Image(systemName: appState.followLatestCaptions ? "arrow.down.circle.fill" : "arrow.down.circle")
+                .font(.system(size: 12))
+                .foregroundStyle(appState.followLatestCaptions ? .mint : .secondary)
+                .frame(width: 28, height: 28)
+                .background(
+                    Circle()
+                        .fill(appState.followLatestCaptions ? Color.mint.opacity(0.12) : Color.primary.opacity(0.05))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(appState.followLatestCaptions ? "Follow latest captions" : "Keep transcript in place")
     }
 
     // MARK: - Helpers

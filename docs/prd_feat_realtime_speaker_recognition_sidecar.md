@@ -76,9 +76,9 @@ As a user, I want system-audio rows to become `Speaker 1`, `Speaker 2`, etc. aft
 
 Acceptance criteria:
 
-- [ ] Captions appear immediately with the existing safe label.
-- [ ] After diarization, matching rows update speaker labels without moving text between rows.
-- [ ] Low-confidence or unmatched rows keep the existing label.
+- [x] Captions appear immediately with the existing safe label.
+- [x] After diarization, matching rows update speaker labels without moving text between rows.
+- [x] Low-confidence or unmatched rows keep the existing label.
 
 ### US-SPK-002: No Production Regression
 
@@ -86,9 +86,9 @@ As a user, I want speaker recognition to be optional and non-disruptive.
 
 Acceptance criteria:
 
-- [ ] Feature defaults off.
-- [ ] Realtime caption and translation tests pass unchanged when off.
-- [ ] Background diarization failure does not stop realtime sessions.
+- [x] Feature defaults off.
+- [x] Realtime caption and translation tests pass unchanged when off.
+- [x] Background diarization failure does not stop realtime sessions.
 
 ### US-SPK-003: Known Speakers Later
 
@@ -97,8 +97,8 @@ As a user, I may want "Alice" and "Bob" labels if I provide short references.
 Acceptance criteria:
 
 - [ ] Settings can store up to four known speaker names and reference clips in a future-safe model.
-- [ ] First implementation may hide known-speaker capture behind a lab flag.
-- [ ] Unknown speakers still fall back to numbered labels.
+- [x] First implementation may hide known-speaker capture behind a lab flag.
+- [x] Unknown speakers still fall back to numbered labels.
 
 ---
 
@@ -187,12 +187,12 @@ Provider probe should use synthetic multi-speaker audio only.
 
 ## 8. Done Means
 
-- [ ] Speaker recognition is off by default.
-- [ ] Realtime caption and interpreter flows pass with sidecar off.
-- [ ] Sidecar can annotate rows after finalization without rewriting text.
-- [ ] Ambiguous results are ignored safely.
-- [ ] Settings clearly discloses delayed labels, cost, and privacy.
-- [ ] Docs/API/changelog reflect the new data model and sidecar contract.
+- [x] Speaker recognition is off by default.
+- [x] Realtime caption and interpreter flows pass with sidecar off.
+- [x] Sidecar can annotate rows after finalization without rewriting text.
+- [x] Ambiguous results are ignored safely.
+- [x] Settings clearly discloses delayed labels, cost, and privacy.
+- [x] Docs/API/changelog reflect the new data model and sidecar contract.
 
 ---
 

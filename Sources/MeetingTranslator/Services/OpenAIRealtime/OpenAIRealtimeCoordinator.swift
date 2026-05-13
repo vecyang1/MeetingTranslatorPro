@@ -23,7 +23,9 @@ final class OpenAIRealtimeCoordinator {
         sources: [TranscriptionEntry.AudioSource],
         showTranslations: Bool,
         sameLanguage: Bool,
-        wantsTranslatedAudio: Bool,
+        hasPinnedSourceLanguage: Bool,
+        wantsInterpreterSession: Bool,
+        translatedAudioPlaybackEnabled: Bool,
         targetLanguageCode: String,
         languageHint: String?,
         latencyPreset: RealtimeCaptionLatencyPreset,
@@ -35,7 +37,8 @@ final class OpenAIRealtimeCoordinator {
         let decision = router.route(
             showTranslations: showTranslations,
             sameLanguage: sameLanguage,
-            wantsTranslatedAudio: wantsTranslatedAudio,
+            hasPinnedSourceLanguage: hasPinnedSourceLanguage,
+            wantsInterpreterSession: wantsInterpreterSession,
             wantsAgent: false
         )
         activeMode = decision.mode
@@ -44,7 +47,17 @@ final class OpenAIRealtimeCoordinator {
             switch decision.mode {
             case .translation:
                 guard decision.shouldStartTranslationSession else { continue }
-                let service = OpenAIRealtimeTranslationService(apiKey: apiKey, source: source)
+                if decision.shouldStartSourceCaptionSession {
+                    let captionService = OpenAIRealtimeTranscriptionService(apiKey: apiKey, source: source)
+                    wire(captionService)
+                    transcriptionServices[source] = captionService
+                    try await captionService.connect(languageHint: languageHint, latencyPreset: latencyPreset)
+                }
+                let service = OpenAIRealtimeTranslationService(
+                    apiKey: apiKey,
+                    source: source,
+                    translatedAudioPlaybackEnabled: translatedAudioPlaybackEnabled
+                )
                 wire(service)
                 translationServices[source] = service
                 try await service.connect(targetLanguageCode: targetLanguageCode)
@@ -79,17 +92,29 @@ final class OpenAIRealtimeCoordinator {
         reducer.reset()
     }
 
-    func sendAudio(_ data: Data, source: TranscriptionEntry.AudioSource) -> Bool {
+    func sendAudio(_ data: Data, source: TranscriptionEntry.AudioSource) -> RealtimeSendResult {
         switch activeMode {
         case .translation:
-            return translationServices[source]?.sendAudio(data) ?? false
+            let sentToTranslation = translationServices[source]?.sendAudio(data) ?? false
+            let sentToSourceCaption = transcriptionServices[source]?.sendAudio(data) ?? false
+            return RealtimeSendResult(sentToPrimary: sentToTranslation, sentToSourceCaption: sentToSourceCaption)
         case .transcription:
-            return transcriptionServices[source]?.sendAudio(data) ?? false
+            return RealtimeSendResult(
+                sentToPrimary: transcriptionServices[source]?.sendAudio(data) ?? false,
+                sentToSourceCaption: false
+            )
         case .agent:
-            return agentServices[source]?.sendAudio(data) ?? false
+            return RealtimeSendResult(
+                sentToPrimary: agentServices[source]?.sendAudio(data) ?? false,
+                sentToSourceCaption: false
+            )
         case .none:
-            return false
+            return RealtimeSendResult(sentToPrimary: false, sentToSourceCaption: false)
         }
+    }
+
+    func resetTranscriptionBoundaryContext(source: TranscriptionEntry.AudioSource) {
+        transcriptionServices[source]?.resetAudioBoundaryContext()
     }
 
     func reduce(_ event: RealtimeAppEvent) -> RealtimeReducedEntry? {

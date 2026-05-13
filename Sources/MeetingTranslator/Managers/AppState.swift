@@ -18,13 +18,16 @@ final class AppState: ObservableObject {
     @Published var apiKey: String = ""
     @Published var googleAPIKey: String = ""
     @Published var processingCount: Int = 0
-    @Published var selectedEngine: TranscriptionEngine = .openAI
+    @Published var selectedEngine: TranscriptionEngine = .openAIRealtime
     @Published var showTranslations: Bool = true
+    @Published var followLatestCaptions: Bool = true
     @Published var isGeminiLiveConnected: Bool = false
     @Published var realtimeCaptionLatency: RealtimeCaptionLatencyPreset = .balanced
     @Published var realtimeReasoningEffort: RealtimeReasoningEffort = .low
+    @Published var realtimeInterpreterSessionEnabled: Bool = false
     @Published var realtimeTranslatedAudioPlayback: Bool = false
     @Published var realtimeAutomaticFallback: Bool = true
+    @Published var speakerRecognitionMode: SpeakerRecognitionMode = .off
     @Published var openAIRealtimeState: RealtimeSessionState = .disconnected
     @Published var activeRealtimeMode: RealtimeRouteMode?
 
@@ -81,6 +84,10 @@ final class AppState: ObservableObject {
     private var geminiLiveReconnectAttempts = 0
     private let maxGeminiLiveReconnectAttempts = 5
 
+    /// OpenAI Realtime short retry tracking for transient startup/network failures.
+    private var openAIRealtimeRecoveryAttempts = 0
+    private var openAIRealtimeRecoveryTask: Task<Void, Never>?
+
     // MARK: - Pipeline Timers
     private var fastTimer: Task<Void, Never>?
     private var stitchTimer: Task<Void, Never>?
@@ -103,6 +110,7 @@ final class AppState: ObservableObject {
     private let targetLangKey = "com.meetingtranslator.targetlang"
     private let engineKey = "com.meetingtranslator.engine"
     private let showTranslationsKey = "com.meetingtranslator.showtranslations"
+    private let followLatestCaptionsKey = "com.meetingtranslator.followlatestcaptions"
     private let fastIntervalKey = "com.meetingtranslator.fastinterval"
     private let stitchIntervalKey = "com.meetingtranslator.stitchinterval"
     private let geminiQualityIntervalKey = "com.meetingtranslator.geminiquality"
@@ -110,8 +118,10 @@ final class AppState: ObservableObject {
     private let inputLanguagesKey = "com.meetingtranslator.inputlanguages"
     private let realtimeCaptionLatencyKey = "com.meetingtranslator.realtime.captionlatency"
     private let realtimeReasoningEffortKey = "com.meetingtranslator.realtime.reasoningeffort"
+    private let realtimeInterpreterSessionEnabledKey = "com.meetingtranslator.realtime.interpretersessionenabled"
     private let realtimeTranslatedAudioPlaybackKey = "com.meetingtranslator.realtime.translatedaudioplayback"
     private let realtimeAutomaticFallbackKey = "com.meetingtranslator.realtime.automaticfallback"
+    private let speakerRecognitionModeKey = "com.meetingtranslator.speakerrecognition.mode"
 
     // MARK: - Hallucination Detection
 
@@ -377,8 +387,9 @@ final class AppState: ObservableObject {
         let savedKey = UserDefaults.standard.string(forKey: apiKeyKey) ?? ""
         let savedGoogleKey = UserDefaults.standard.string(forKey: googleAPIKeyKey) ?? ""
         let savedLang = UserDefaults.standard.string(forKey: targetLangKey) ?? "English"
-        let savedEngine = UserDefaults.standard.string(forKey: engineKey) ?? TranscriptionEngine.openAI.rawValue
+        let savedEngine = UserDefaults.standard.string(forKey: engineKey) ?? TranscriptionEngine.openAIRealtime.rawValue
         let savedShowTranslations = UserDefaults.standard.object(forKey: showTranslationsKey) as? Bool ?? true
+        let savedFollowLatestCaptions = UserDefaults.standard.object(forKey: followLatestCaptionsKey) as? Bool ?? true
         let savedFastInterval = UserDefaults.standard.object(forKey: fastIntervalKey) as? Double ?? 3.0
         let savedStitchInterval = UserDefaults.standard.object(forKey: stitchIntervalKey) as? Double ?? 15.0
         let savedGeminiQuality = UserDefaults.standard.object(forKey: geminiQualityIntervalKey) as? Double ?? 12.0
@@ -387,14 +398,17 @@ final class AppState: ObservableObject {
         let restoredInputLangs = Set(savedInputLangs.compactMap { SupportedLanguage(rawValue: $0) })
         let savedRealtimeLatency = UserDefaults.standard.string(forKey: realtimeCaptionLatencyKey) ?? RealtimeCaptionLatencyPreset.balanced.rawValue
         let savedRealtimeReasoning = UserDefaults.standard.string(forKey: realtimeReasoningEffortKey) ?? RealtimeReasoningEffort.low.rawValue
+        let savedRealtimeInterpreter = UserDefaults.standard.object(forKey: realtimeInterpreterSessionEnabledKey) as? Bool ?? false
         let savedRealtimeAudioPlayback = UserDefaults.standard.object(forKey: realtimeTranslatedAudioPlaybackKey) as? Bool ?? false
         let savedRealtimeFallback = UserDefaults.standard.object(forKey: realtimeAutomaticFallbackKey) as? Bool ?? true
+        let savedSpeakerRecognitionMode = UserDefaults.standard.string(forKey: speakerRecognitionModeKey) ?? SpeakerRecognitionMode.off.rawValue
 
         self.apiKey = savedKey
         self.googleAPIKey = savedGoogleKey
         self.targetLanguage = SupportedLanguage(rawValue: savedLang) ?? .english
-        self.selectedEngine = TranscriptionEngine(rawValue: savedEngine) ?? .openAI
+        self.selectedEngine = TranscriptionEngine(rawValue: savedEngine) ?? .openAIRealtime
         self.showTranslations = savedShowTranslations
+        self.followLatestCaptions = savedFollowLatestCaptions
         self.fastInterval = savedFastInterval
         self.stitchInterval = savedStitchInterval
         self.geminiQualityInterval = savedGeminiQuality
@@ -402,8 +416,10 @@ final class AppState: ObservableObject {
         self.inputLanguages = restoredInputLangs
         self.realtimeCaptionLatency = RealtimeCaptionLatencyPreset(rawValue: savedRealtimeLatency) ?? .balanced
         self.realtimeReasoningEffort = RealtimeReasoningEffort(rawValue: savedRealtimeReasoning) ?? .low
+        self.realtimeInterpreterSessionEnabled = savedRealtimeInterpreter
         self.realtimeTranslatedAudioPlayback = savedRealtimeAudioPlayback
         self.realtimeAutomaticFallback = savedRealtimeFallback
+        self.speakerRecognitionMode = SpeakerRecognitionMode(rawValue: savedSpeakerRecognitionMode) ?? .off
         self.whisperService = WhisperService(apiKey: savedKey)
         self.translationService = TranslationService(apiKey: savedKey)
         self.geminiFlashService = GeminiFlashService(apiKey: savedGoogleKey)
@@ -534,6 +550,51 @@ final class AppState: ObservableObject {
 
     // MARK: - OpenAI Realtime
 
+    private func cancelOpenAIRealtimeRecovery() {
+        openAIRealtimeRecoveryTask?.cancel()
+        openAIRealtimeRecoveryTask = nil
+        openAIRealtimeRecoveryAttempts = 0
+    }
+
+    private func scheduleOpenAIRealtimeRecoveryIfNeeded(message: String) -> Bool {
+        guard selectedEngine == .openAIRealtime else { return false }
+        let sessionIsStartingOrActive = isRecording || openAIRealtimeState == .connecting || activeRealtimeMode != nil
+        guard sessionIsStartingOrActive else { return false }
+        if openAIRealtimeRecoveryTask != nil {
+            return true
+        }
+        guard RealtimeConnectionRecoveryPolicy.shouldRetry(
+            message: message,
+            attemptsUsed: openAIRealtimeRecoveryAttempts
+        ) else { return false }
+
+        openAIRealtimeRecoveryAttempts += 1
+        let attempt = openAIRealtimeRecoveryAttempts
+        openAIRealtimeState = .reconnecting(attempt)
+        statusMessage = openAIRealtimeState.userMessage
+        errorMessage = nil
+
+        let delay = RealtimeConnectionRecoveryPolicy.retryDelayNanoseconds(forAttempt: attempt)
+        openAIRealtimeRecoveryTask = Task { [weak self] in
+            do {
+                try await Task.sleep(nanoseconds: delay)
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            await self?.restartOpenAIRealtimeAfterRecoverableError()
+        }
+        return true
+    }
+
+    private func restartOpenAIRealtimeAfterRecoverableError() async {
+        openAIRealtimeRecoveryTask = nil
+        guard isRecording, selectedEngine == .openAIRealtime else { return }
+        statusMessage = "Reconnecting OpenAI Realtime..."
+        stopOpenAIRealtimeSessions()
+        await startOpenAIRealtimeSessions()
+    }
+
     private func startOpenAIRealtimeSessions() async {
         stopOpenAIRealtimeSessions()
 
@@ -554,7 +615,9 @@ final class AppState: ObservableObject {
                 sources: sources,
                 showTranslations: showTranslations,
                 sameLanguage: sameLanguage,
-                wantsTranslatedAudio: useRealtimeTranslationSession,
+                hasPinnedSourceLanguage: inputLanguages.count == 1,
+                wantsInterpreterSession: useRealtimeTranslationSession,
+                translatedAudioPlaybackEnabled: false,
                 targetLanguageCode: targetLanguage.isoCode,
                 languageHint: inputLanguages.count == 1 ? inputLanguages.first?.isoCode : nil,
                 latencyPreset: realtimeCaptionLatency,
@@ -580,16 +643,29 @@ final class AppState: ObservableObject {
     }
 
     private func routeRealtimeAudioChunk(_ data: Data, source: TranscriptionEntry.AudioSource) {
-        guard hasEnoughEnergy(data) else { return }
+        guard hasEnoughEnergy(data) else {
+            realtimeCoordinator.resetTranscriptionBoundaryContext(source: source)
+            return
+        }
         _ = realtimeCoordinator.sendAudio(data, source: source)
     }
 
     private func handleOpenAIRealtimeEvent(_ event: RealtimeAppEvent) async {
         switch event {
         case .sessionStateChanged(_, let state):
-            openAIRealtimeState = state
-            if isRecording { statusMessage = state.userMessage }
+            if case .failed(let message) = state,
+               scheduleOpenAIRealtimeRecoveryIfNeeded(message: message) {
+                return
+            }
+            if case .connected = state, openAIRealtimeRecoveryTask == nil {
+                openAIRealtimeRecoveryAttempts = 0
+            }
+            openAIRealtimeState = state.presented(activeMode: activeRealtimeMode)
+            if isRecording { statusMessage = openAIRealtimeState.userMessage }
         case .recoverableError(_, let message, _):
+            if scheduleOpenAIRealtimeRecoveryIfNeeded(message: message) {
+                return
+            }
             showError(message)
             if isRecording && realtimeAutomaticFallback {
                 activateLegacyOpenAIFallback()
@@ -652,6 +728,7 @@ final class AppState: ObservableObject {
                 insertEntryChronologically(entry)
                 trimEntriesIfNeeded()
             }
+            removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
             return
         }
 
@@ -663,6 +740,7 @@ final class AppState: ObservableObject {
             entries[idx].translatedText = reduced.translatedText ?? entries[idx].translatedText
             entries[idx].detectedLanguage = reduced.language ?? entries[idx].detectedLanguage
             entries[idx].isDraft = true
+            removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
             return
         }
 
@@ -680,6 +758,7 @@ final class AppState: ObservableObject {
             realtimeItemID: reduced.itemID
         )
         insertEntryChronologically(entry)
+        removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
         trimEntriesIfNeeded()
     }
 
@@ -718,6 +797,7 @@ final class AppState: ObservableObject {
                 )
                 insertEntryChronologically(entry)
             }
+            removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
             lastConfirmedTranslation = text
             trimEntriesIfNeeded()
             return
@@ -749,6 +829,12 @@ final class AppState: ObservableObject {
         }
 
         let detected = reduced.language ?? detectLanguageFromText(text)
+        if realtimeMode != .translation,
+           RealtimeUtteranceMerger.shouldDropUnstableShortFragment(text, language: detected) {
+            removeRealtimeEntry(itemID: reduced.itemID, source: reduced.source)
+            return
+        }
+
         let mergeTarget = realtimeMode == .translation ? nil : realtimeMergeCandidate(
             reduced: reduced,
             text: text,
@@ -791,13 +877,15 @@ final class AppState: ObservableObject {
 
         if let mergeTargetID, let mergeIndex = entries.firstIndex(where: { $0.id == mergeTargetID }) {
             let keptEntryID = entries[mergeIndex].id
-            entries[mergeIndex].originalText = finalText
-            entries[mergeIndex].translatedText = translated
-            entries[mergeIndex].detectedLanguage = detected
-            entries[mergeIndex].isTranslating = realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage
-            entries[mergeIndex].speakerLabel = buildSpeakerLabel(source: reduced.source, language: detected)
-            entries[mergeIndex].isDraft = false
-            entries[mergeIndex].isQualityResult = false
+            RealtimeUtteranceMerger.applyMergedFinal(
+                to: &entries[mergeIndex],
+                originalText: finalText,
+                translatedText: translated,
+                detectedLanguage: detected,
+                speakerLabel: buildSpeakerLabel(source: reduced.source, language: detected),
+                isTranslating: realtimeMode == .translation && translated == nil && showTranslations && !sameLanguage,
+                mergedAt: reduced.timestamp
+            )
             entries.removeAll {
                 $0.id != keptEntryID && $0.realtimeItemID == reduced.itemID && $0.source == reduced.source
             }
@@ -809,6 +897,7 @@ final class AppState: ObservableObject {
             entries[idx].speakerLabel = buildSpeakerLabel(source: reduced.source, language: detected)
             entries[idx].isDraft = false
             entries[idx].isQualityResult = false
+            removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
         } else {
             let entry = TranscriptionEntry(
                 timestamp: reduced.timestamp,
@@ -822,6 +911,7 @@ final class AppState: ObservableObject {
                 realtimeItemID: reduced.itemID
             )
             insertEntryChronologically(entry)
+            removeRealtimeEntries(itemIDs: reduced.supersededItemIDs, source: reduced.source, keeping: reduced.itemID)
         }
 
         let consolidatedText = realtimeMode == .translation
@@ -888,6 +978,19 @@ final class AppState: ObservableObject {
         entries.removeAll { $0.realtimeItemID == itemID && $0.source == source }
     }
 
+    private func removeRealtimeEntries(
+        itemIDs: [String],
+        source: TranscriptionEntry.AudioSource,
+        keeping keptItemID: String
+    ) {
+        guard !itemIDs.isEmpty else { return }
+        let staleIDs = Set(itemIDs.filter { $0 != keptItemID })
+        guard !staleIDs.isEmpty else { return }
+        entries.removeAll { entry in
+            entry.source == source && entry.realtimeItemID.map { staleIDs.contains($0) } == true
+        }
+    }
+
     private func activeAudioSources() -> [TranscriptionEntry.AudioSource] {
         var sources: [TranscriptionEntry.AudioSource] = []
         if isMicEnabled { sources.append(.microphone) }
@@ -901,7 +1004,7 @@ final class AppState: ObservableObject {
     }
 
     private func shouldUseRealtimeTranslationSession(sameLanguage: Bool) -> Bool {
-        showTranslations && !sameLanguage && inputLanguages.count == 1 && realtimeTranslatedAudioPlayback
+        showTranslations && !sameLanguage && inputLanguages.count == 1 && realtimeInterpreterSessionEnabled
     }
 
     private func shouldUseRealtimeTextTranslationFallback(
@@ -913,6 +1016,7 @@ final class AppState: ObservableObject {
 
     private func activateLegacyOpenAIFallback() {
         guard selectedEngine == .openAIRealtime, realtimeAutomaticFallback else { return }
+        cancelOpenAIRealtimeRecovery()
         stopOpenAIRealtimeSessions()
         stopPipelineTimers()
         selectedEngine = .openAI
@@ -940,6 +1044,7 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(targetLanguage.rawValue, forKey: targetLangKey)
         UserDefaults.standard.set(selectedEngine.rawValue, forKey: engineKey)
         UserDefaults.standard.set(showTranslations, forKey: showTranslationsKey)
+        UserDefaults.standard.set(followLatestCaptions, forKey: followLatestCaptionsKey)
         UserDefaults.standard.set(fastInterval, forKey: fastIntervalKey)
         UserDefaults.standard.set(stitchInterval, forKey: stitchIntervalKey)
         UserDefaults.standard.set(geminiQualityInterval, forKey: geminiQualityIntervalKey)
@@ -947,8 +1052,10 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(inputLanguages.map { $0.rawValue }, forKey: inputLanguagesKey)
         UserDefaults.standard.set(realtimeCaptionLatency.rawValue, forKey: realtimeCaptionLatencyKey)
         UserDefaults.standard.set(realtimeReasoningEffort.rawValue, forKey: realtimeReasoningEffortKey)
+        UserDefaults.standard.set(realtimeInterpreterSessionEnabled, forKey: realtimeInterpreterSessionEnabledKey)
         UserDefaults.standard.set(realtimeTranslatedAudioPlayback, forKey: realtimeTranslatedAudioPlaybackKey)
         UserDefaults.standard.set(realtimeAutomaticFallback, forKey: realtimeAutomaticFallbackKey)
+        UserDefaults.standard.set(speakerRecognitionMode.rawValue, forKey: speakerRecognitionModeKey)
         whisperService.updateAPIKey(apiKey)
         translationService.updateAPIKey(apiKey)
         geminiFlashService.updateAPIKey(googleAPIKey)
@@ -976,6 +1083,36 @@ final class AppState: ObservableObject {
         saveSettings()
     }
 
+    func setFollowLatestCaptions(_ enabled: Bool) {
+        guard followLatestCaptions != enabled else { return }
+        followLatestCaptions = enabled
+        UserDefaults.standard.set(enabled, forKey: followLatestCaptionsKey)
+    }
+
+    func setRealtimeInterpreterSessionEnabled(_ enabled: Bool) {
+        guard realtimeInterpreterSessionEnabled != enabled else { return }
+        realtimeInterpreterSessionEnabled = enabled
+        UserDefaults.standard.set(enabled, forKey: realtimeInterpreterSessionEnabledKey)
+
+        guard selectedEngine == .openAIRealtime else { return }
+        let needsRoutingRefresh = isRecording && (activeRealtimeMode == .translation || enabled)
+        if activeRealtimeMode == .translation {
+            stopOpenAIRealtimeSessions()
+            statusMessage = enabled ? "Restarting realtime translation..." : "Realtime captions active"
+        } else if enabled && isRecording {
+            statusMessage = "Restarting realtime translation..."
+        }
+        if needsRoutingRefresh {
+            Task { await refreshOpenAIRealtimeRoutingIfNeeded() }
+        }
+    }
+
+    func setSpeakerRecognitionMode(_ mode: SpeakerRecognitionMode) {
+        guard speakerRecognitionMode != mode else { return }
+        speakerRecognitionMode = mode
+        UserDefaults.standard.set(mode.rawValue, forKey: speakerRecognitionModeKey)
+    }
+
     private func refreshOpenAIRealtimeRoutingIfNeeded() async {
         guard isRecording, selectedEngine == .openAIRealtime else { return }
         await startOpenAIRealtimeSessions()
@@ -998,6 +1135,7 @@ final class AppState: ObservableObject {
         errorMessage = nil
         processingCount = 0
         costTracker.resetSession()
+        cancelOpenAIRealtimeRecovery()
         resetPipelineState()
 
         configureAudioCaptureForSelectedEngine()
@@ -1059,7 +1197,10 @@ final class AppState: ObservableObject {
         stopPipelineTimers()
 
         if engineAtStop == .geminiLive { geminiLiveService.disconnect() }
-        if engineAtStop == .openAIRealtime { stopOpenAIRealtimeSessions() }
+        if engineAtStop == .openAIRealtime {
+            cancelOpenAIRealtimeRecovery()
+            stopOpenAIRealtimeSessions()
+        }
 
         isRecording = false
         stopRecordingTimer()
@@ -1116,7 +1257,7 @@ final class AppState: ObservableObject {
             let time = df.string(from: entry.timestamp)
             let speaker = entry.speakerLabel ?? entry.source.rawValue
             let lang = entry.languageName ?? entry.detectedLanguage?.uppercased() ?? "??"
-            out += "[\(time)] [\(speaker)] [\(lang)]\n"
+            out += "[\(time)] [\(speaker)] [\(entry.source.rawValue)] [\(lang)]\n"
             out += "  Original:   \(entry.originalText)\n"
             if let t = entry.translatedText { out += "  Translated: \(t)\n" }
             out += "\n"
@@ -1643,21 +1784,7 @@ final class AppState: ObservableObject {
     // MARK: - Language Detection from Text
 
     private func detectLanguageFromText(_ text: String) -> String {
-        var cjk = 0, hira = 0, latin = 0, arabic = 0, korean = 0
-        for s in text.unicodeScalars {
-            let v = s.value
-            if (v >= 0x4E00 && v <= 0x9FFF) || (v >= 0x3400 && v <= 0x4DBF) { cjk += 1 }
-            if (v >= 0x3040 && v <= 0x30FF) { hira += 1 }
-            if (v >= 0x0041 && v <= 0x007A) { latin += 1 }
-            if (v >= 0x0600 && v <= 0x06FF) { arabic += 1 }
-            if (v >= 0xAC00 && v <= 0xD7AF) { korean += 1 }
-        }
-        let total = max(1, cjk + hira + latin + arabic + korean)
-        if hira > 0 { return "ja" }
-        if korean > Int(Double(total) * 0.3) { return "ko" }
-        if cjk > Int(Double(total) * 0.3) { return "zh" }
-        if arabic > Int(Double(total) * 0.3) { return "ar" }
-        return "en"
+        LanguageDetector.detect(text)
     }
 
     // MARK: - Error Handling

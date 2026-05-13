@@ -1,0 +1,93 @@
+---
+name: managers
+description: "Skill for the Managers area of MeetingTranslatorPro. 100 symbols across 11 files."
+---
+
+# Managers
+
+100 symbols | 11 files | Cohesion: 75%
+
+## When to Use
+
+- Working with code in `Sources/`
+- Understanding how transcribe, createWAVData, translate work
+- Modifying managers-related functionality
+
+## Key Files
+
+| File | Symbols |
+|------|---------|
+| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+54) |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, sendSetupAndWait (+5) |
+| `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, stopCapturing, drainRemainingAudio, configureChunking (+5) |
+| `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | configureChunking, startCapturing, processAudioData, flushAccumulatedAudio, restartChunkTimerIfCapturing (+3) |
+| `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
+| `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, createWAVData, updateAPIKey |
+| `Sources/MeetingTranslator/Services/TranslationService.swift` | translate, updateAPIKey |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | applyMergedFinal |
+| `Sources/MeetingTranslator/Views/ContentView.swift` | swapLanguages |
+| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | updateAPIKey |
+
+## Entry Points
+
+Start here when exploring this area:
+
+- **`transcribe`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:30`
+- **`createWAVData`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:171`
+- **`translate`** (Function) — `Sources/MeetingTranslator/Services/TranslationService.swift:26`
+- **`logWhisperTranscription`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:62`
+- **`logGPTTranslation`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:68`
+
+## Key Symbols
+
+| Symbol | Type | File | Line |
+|--------|------|------|------|
+| `transcribe` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 30 |
+| `createWAVData` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 171 |
+| `translate` | Function | `Sources/MeetingTranslator/Services/TranslationService.swift` | 26 |
+| `logWhisperTranscription` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 62 |
+| `logGPTTranslation` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 68 |
+| `logGeminiFlash` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 75 |
+| `rmsEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 333 |
+| `hasEnoughEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 348 |
+| `isSameLanguage` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 355 |
+| `extractContext` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 362 |
+| `removeDuplicatePrefix` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 368 |
+| `trimEntriesIfNeeded` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 491 |
+| `upsertRealtimePartial` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 698 |
+| `confirmRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 756 |
+| `removeRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 965 |
+| `shouldUseRealtimeTextTranslationFallback` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 985 |
+| `processFastLayer` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1342 |
+| `processOpenAIFast` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1376 |
+| `processStitchLayerWithData` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1457 |
+| `processGeminiFast` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1547 |
+
+## Execution Flows
+
+| Flow | Type | Steps |
+|------|------|-------|
+| `SetupOpenAIRealtimeCallbacks → Disconnect` | cross_community | 7 |
+| `SetupBindings → LiveResult` | cross_community | 7 |
+| `ProcessGeminiQualityLayer → IsRepeatedCharacterHallucination` | cross_community | 7 |
+| `ProcessGeminiQualityLayer → GeminiResult` | cross_community | 7 |
+| `ProcessGeminiFast → IsRepeatedCharacterHallucination` | cross_community | 6 |
+| `ProcessGeminiFast → GeminiResult` | cross_community | 6 |
+| `SetupGeminiLiveCallbacks → ScalarHits` | cross_community | 6 |
+| `HandleOpenAIRealtimeEvent → Reset` | cross_community | 6 |
+| `SetupOpenAIRealtimeCallbacks → ActiveAudioSources` | cross_community | 6 |
+| `SetupOpenAIRealtimeCallbacks → ShowError` | cross_community | 6 |
+
+## Connected Areas
+
+| Area | Connections |
+|------|-------------|
+| OpenAIRealtime | 9 calls |
+| Services | 7 calls |
+| Models | 1 calls |
+
+## How to Explore
+
+1. `gitnexus_context({name: "transcribe"})` — see callers and callees
+2. `gitnexus_query({query: "managers"})` — find related execution flows
+3. Read key files listed above for implementation details

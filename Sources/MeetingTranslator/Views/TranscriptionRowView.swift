@@ -57,12 +57,14 @@ struct TranscriptionRowView: View {
                 }
 
                 // Original text
-                Text(wrappedText(entry.originalText))
+                Text(entry.originalText)
                     .font(.system(size: 13, weight: .regular))
                     .italic(entry.isDraft)
                     .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.5) : Color.primary.opacity(0.85))
                     .textSelection(.enabled)
                     .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .animation(nil, value: entry.originalText)
 
                 // Translation — hide when detected language matches target (avoids duplicate text)
                 if showTranslation && !isSameAsTarget {
@@ -77,12 +79,14 @@ struct TranscriptionRowView: View {
                         }
                         .padding(.top, 2)
                     } else if let translated = entry.translatedText {
-                        Text(wrappedText(translated))
+                        Text(translated)
                             .font(.system(size: 14, weight: entry.isDraft ? .regular : .medium))
                             .italic(entry.isDraft)
                             .foregroundStyle(entry.isDraft ? Color.primary.opacity(0.5) : Color.primary)
                             .textSelection(.enabled)
                             .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .animation(nil, value: translated)
                             .padding(.vertical, 8)
                             .padding(.horizontal, 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -102,6 +106,11 @@ struct TranscriptionRowView: View {
         )
         .padding(.horizontal, 8)
         .opacity(entry.isDraft ? 0.75 : 1.0)
+        .transaction { transaction in
+            if entry.isDraft {
+                transaction.animation = nil
+            }
+        }
     }
 
     // MARK: - Speaker Badge
@@ -166,39 +175,6 @@ struct TranscriptionRowView: View {
     private var isSameAsTarget: Bool {
         guard let code = entry.detectedLanguage?.lowercased() else { return false }
         return targetLanguage.allISOCodes.contains(code)
-    }
-
-    // MARK: - CJK Line Wrapping
-
-    private func wrappedText(_ text: String) -> String {
-        let cjkCount = text.unicodeScalars.filter { v in
-            let val = v.value
-            return (val >= 0x4E00 && val <= 0x9FFF) ||
-                   (val >= 0x3040 && val <= 0x30FF) ||
-                   (val >= 0xAC00 && val <= 0xD7AF)
-        }.count
-        guard cjkCount > text.count / 3 else { return text }
-
-        let lineLength = 24
-        var result = ""
-        var lineCount = 0
-
-        for char in text {
-            let isBreakable = "，。！？、；：\n ".contains(char)
-            result.append(char)
-            lineCount += 1
-
-            if isBreakable {
-                if lineCount >= lineLength - 5 {
-                    result.append("\n")
-                    lineCount = 0
-                }
-            } else if lineCount >= lineLength {
-                result.append("\n")
-                lineCount = 0
-            }
-        }
-        return result.trimmingCharacters(in: .newlines)
     }
 
     private func languageColorForCode(_ code: String) -> Color {

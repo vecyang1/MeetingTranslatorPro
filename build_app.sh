@@ -51,6 +51,7 @@ swiftc \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeDraftFinalizer.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeConnectionRecoveryPolicy.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/AudioResampler.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift \
