@@ -62,6 +62,7 @@ final class AppState: ObservableObject {
     private var geminiLiveService: GeminiLiveService
     private let realtimeCoordinator = OpenAIRealtimeCoordinator()
     private let translatedAudioPlayer = RealtimeTranslatedAudioPlayer()
+    private var audioOutputRouteObserver: AudioOutputRouteObserver?
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Pipeline Buffers
@@ -106,6 +107,7 @@ final class AppState: ObservableObject {
     private var draftEntryIDs: Set<UUID> = []
     private var stitchWindowStart: Date = Date()
     private var translatedAudioPlaybackWasActiveThisSession = false
+    private var realtimeTranslatedAudioSafeOutputRouteFingerprint: String?
 
     /// Input languages the user expects speakers to use.
     /// Empty = auto-detect all. Single = strongest Whisper hint. Multiple = prompt hint.
@@ -130,6 +132,7 @@ final class AppState: ObservableObject {
     private let realtimeTranslatedAudioMutedKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.muted"
     private let realtimeTranslatedAudioVolumeKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.volume"
     private let realtimeTranslatedAudioSafeOutputConfirmedKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutput"
+    private let realtimeTranslatedAudioSafeOutputRouteFingerprintKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutputroute"
     private let realtimeAutomaticFallbackKey = "com.meetingtranslator.realtime.automaticfallback"
     private let speakerRecognitionModeKey = "com.meetingtranslator.speakerrecognition.mode"
 
@@ -413,6 +416,7 @@ final class AppState: ObservableObject {
         let savedRealtimeAudioMuted = UserDefaults.standard.object(forKey: realtimeTranslatedAudioMutedKey) as? Bool ?? false
         let savedRealtimeAudioVolume = UserDefaults.standard.object(forKey: realtimeTranslatedAudioVolumeKey) as? Double ?? 0.65
         let savedRealtimeSafeOutput = UserDefaults.standard.object(forKey: realtimeTranslatedAudioSafeOutputConfirmedKey) as? Bool ?? false
+        let savedRealtimeSafeOutputRouteFingerprint = UserDefaults.standard.string(forKey: realtimeTranslatedAudioSafeOutputRouteFingerprintKey)
         let savedRealtimeFallback = UserDefaults.standard.object(forKey: realtimeAutomaticFallbackKey) as? Bool ?? true
         let savedSpeakerRecognitionMode = UserDefaults.standard.string(forKey: speakerRecognitionModeKey) ?? SpeakerRecognitionMode.off.rawValue
 
@@ -434,6 +438,7 @@ final class AppState: ObservableObject {
         self.realtimeTranslatedAudioMuted = savedRealtimeAudioMuted
         self.realtimeTranslatedAudioVolume = min(max(savedRealtimeAudioVolume, 0), 1)
         self.realtimeTranslatedAudioSafeOutputConfirmed = savedRealtimeSafeOutput
+        self.realtimeTranslatedAudioSafeOutputRouteFingerprint = savedRealtimeSafeOutputRouteFingerprint
         self.realtimeAutomaticFallback = savedRealtimeFallback
         self.speakerRecognitionMode = SpeakerRecognitionMode(rawValue: savedSpeakerRecognitionMode) ?? .off
         self.whisperService = WhisperService(apiKey: savedKey)
@@ -444,6 +449,7 @@ final class AppState: ObservableObject {
         setupBindings()
         setupGeminiLiveCallbacks()
         setupOpenAIRealtimeCallbacks()
+        startRealtimeTranslatedAudioOutputRouteObserver()
         refreshRealtimeTranslatedAudioSafetyStatus()
         translatedAudioPlayer.setMuted(realtimeTranslatedAudioMuted)
         translatedAudioPlayer.setVolume(realtimeTranslatedAudioVolume)
@@ -1077,17 +1083,60 @@ final class AppState: ObservableObject {
         guard SystemAudioManager.currentProcessAudioExclusionSupported else {
             return .blockedSystemCaptureIncludesAppAudio
         }
-        if isMicEnabled && !realtimeTranslatedAudioSafeOutputConfirmed {
-            return .needsHeadphonesConfirmation
+        return RealtimeTranslatedAudioOutputSafety.status(
+            isMicEnabled: isMicEnabled,
+            safeOutputConfirmed: realtimeTranslatedAudioSafeOutputConfirmed,
+            confirmedRouteFingerprint: realtimeTranslatedAudioSafeOutputRouteFingerprint,
+            route: AudioOutputRouteInspector.currentDefaultOutputRoute()
+        )
+    }
+
+    private func startRealtimeTranslatedAudioOutputRouteObserver() {
+        audioOutputRouteObserver = AudioOutputRouteObserver { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.handleRealtimeTranslatedAudioOutputRouteChanged()
+            }
         }
-        return .ready
+    }
+
+    private func handleRealtimeTranslatedAudioOutputRouteChanged() {
+        let hadPlayback = realtimeTranslatedAudioPlaybackEnabled || realtimeTranslatedAudioPlaybackActive
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        guard hadPlayback,
+              selectedEngine == .openAIRealtime,
+              isRecording,
+              !realtimeTranslatedAudioSafetyStatus.isReady else { return }
+        Task { await refreshOpenAIRealtimeRoutingIfNeeded() }
     }
 
     private func refreshRealtimeTranslatedAudioSafetyStatus() {
         realtimeTranslatedAudioSafetyStatus = currentRealtimeTranslatedAudioSafetyStatus()
+        if !realtimeTranslatedAudioSafetyStatus.isReady,
+           realtimeTranslatedAudioSafeOutputConfirmed {
+            clearRealtimeTranslatedAudioSafeOutputConfirmation()
+        }
         if !realtimeTranslatedAudioSafetyStatus.isReady {
+            if realtimeTranslatedAudioPlaybackEnabled {
+                realtimeTranslatedAudioPlaybackEnabled = false
+                UserDefaults.standard.set(false, forKey: realtimeTranslatedAudioPlaybackEnabledKey)
+            }
             translatedAudioPlayer.stop(clearQueue: true)
             realtimeTranslatedAudioPlaybackActive = false
+        }
+    }
+
+    private func clearRealtimeTranslatedAudioSafeOutputConfirmation() {
+        realtimeTranslatedAudioSafeOutputConfirmed = false
+        realtimeTranslatedAudioSafeOutputRouteFingerprint = nil
+        UserDefaults.standard.set(false, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+        UserDefaults.standard.removeObject(forKey: realtimeTranslatedAudioSafeOutputRouteFingerprintKey)
+    }
+
+    private func persistRealtimeTranslatedAudioSafeOutputRouteFingerprint() {
+        if let fingerprint = realtimeTranslatedAudioSafeOutputRouteFingerprint {
+            UserDefaults.standard.set(fingerprint, forKey: realtimeTranslatedAudioSafeOutputRouteFingerprintKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: realtimeTranslatedAudioSafeOutputRouteFingerprintKey)
         }
     }
 
@@ -1155,6 +1204,7 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(realtimeTranslatedAudioMuted, forKey: realtimeTranslatedAudioMutedKey)
         UserDefaults.standard.set(realtimeTranslatedAudioVolume, forKey: realtimeTranslatedAudioVolumeKey)
         UserDefaults.standard.set(realtimeTranslatedAudioSafeOutputConfirmed, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+        persistRealtimeTranslatedAudioSafeOutputRouteFingerprint()
         UserDefaults.standard.set(realtimeAutomaticFallback, forKey: realtimeAutomaticFallbackKey)
         UserDefaults.standard.set(speakerRecognitionMode.rawValue, forKey: speakerRecognitionModeKey)
         whisperService.updateAPIKey(apiKey)
@@ -1248,9 +1298,16 @@ final class AppState: ObservableObject {
     }
 
     func setRealtimeTranslatedAudioSafeOutputConfirmed(_ confirmed: Bool) {
-        guard realtimeTranslatedAudioSafeOutputConfirmed != confirmed else { return }
-        realtimeTranslatedAudioSafeOutputConfirmed = confirmed
-        UserDefaults.standard.set(confirmed, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+        if confirmed,
+           let route = AudioOutputRouteInspector.currentDefaultOutputRoute(),
+           RealtimeTranslatedAudioOutputSafety.isConfirmableNonSpeakerRoute(route) {
+            realtimeTranslatedAudioSafeOutputConfirmed = true
+            realtimeTranslatedAudioSafeOutputRouteFingerprint = route.fingerprint
+            UserDefaults.standard.set(true, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+            persistRealtimeTranslatedAudioSafeOutputRouteFingerprint()
+        } else {
+            clearRealtimeTranslatedAudioSafeOutputConfirmation()
+        }
         refreshRealtimeTranslatedAudioSafetyStatus()
         if !realtimeTranslatedAudioSafetyStatus.isReady {
             realtimeTranslatedAudioPlaybackEnabled = false

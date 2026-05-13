@@ -65,14 +65,108 @@ enum TranslatedAudioSafetyStatus: Equatable {
         case .blockedSystemCaptureIncludesAppAudio:
             return "Blocked: system capture cannot prove the app's own audio is excluded."
         case .blockedLikelySpeakerOutputWithMicActive:
-            return "Blocked: speaker output could feed back into the microphone."
+            return "Blocked: current output looks like speakers or display audio; switch to headphones."
         case .needsHeadphonesConfirmation:
-            return "Waiting: use headphones or confirm a safe output to avoid microphone feedback."
+            return "Waiting: use headphones or a non-speaker output, then confirm to avoid microphone feedback."
         case .providerFormatUnknown:
             return "Blocked: translated audio format is not confirmed as PCM16."
         case .unavailable(let reason):
             return "Unavailable: \(reason)"
         }
+    }
+}
+
+struct RealtimeTranslatedAudioOutputRoute: Equatable {
+    let name: String
+    let manufacturer: String?
+    let transportType: String?
+    let dataSource: String?
+    let uniqueID: String?
+
+    init(
+        name: String,
+        manufacturer: String? = nil,
+        transportType: String? = nil,
+        dataSource: String? = nil,
+        uniqueID: String? = nil
+    ) {
+        self.name = name
+        self.manufacturer = manufacturer
+        self.transportType = transportType
+        self.dataSource = dataSource
+        self.uniqueID = uniqueID
+    }
+
+    var searchableText: String {
+        [name, manufacturer, transportType, dataSource, uniqueID]
+            .compactMap { $0 }
+            .joined(separator: " ")
+            .folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+            .lowercased()
+    }
+
+    var fingerprint: String {
+        [uniqueID, name, manufacturer, transportType, dataSource]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .map {
+                $0.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: .current)
+                    .lowercased()
+            }
+            .joined(separator: "|")
+    }
+}
+
+enum RealtimeTranslatedAudioOutputSafety {
+    static func status(
+        isMicEnabled: Bool,
+        safeOutputConfirmed: Bool,
+        confirmedRouteFingerprint: String?,
+        route: RealtimeTranslatedAudioOutputRoute?
+    ) -> TranslatedAudioSafetyStatus {
+        guard isMicEnabled else { return .ready }
+        guard let route else {
+            return .unavailable("default audio output route could not be identified")
+        }
+        if isLikelyRoomSpeaker(route) {
+            return .blockedLikelySpeakerOutputWithMicActive
+        }
+        guard isConfirmableNonSpeakerRoute(route) else {
+            return .unavailable("current output is not recognized as headphones or a safe non-speaker route")
+        }
+        guard safeOutputConfirmed else {
+            return .needsHeadphonesConfirmation
+        }
+        guard confirmedRouteFingerprint == route.fingerprint else {
+            return .needsHeadphonesConfirmation
+        }
+        return .ready
+    }
+
+    static func isConfirmableNonSpeakerRoute(_ route: RealtimeTranslatedAudioOutputRoute) -> Bool {
+        isLikelyHeadphones(route) && !isLikelyRoomSpeaker(route) && !route.fingerprint.isEmpty
+    }
+
+    static func isLikelyHeadphones(_ route: RealtimeTranslatedAudioOutputRoute) -> Bool {
+        let text = route.searchableText
+        let terms = [
+            "headphone", "headphones", "headset", "earbud", "earbuds", "earphone", "earphones",
+            "airpods", "airpod", "earpods", "beats", "buds", "hdpn",
+            "耳机", "耳機", "イヤホン", "ヘッドホン", "casque", "ecouteur", "écouteur", "auriculares"
+        ]
+        return terms.contains { text.contains($0) }
+    }
+
+    static func isLikelyRoomSpeaker(_ route: RealtimeTranslatedAudioOutputRoute) -> Bool {
+        if isLikelyHeadphones(route) { return false }
+        let text = route.searchableText
+        let terms = [
+            "speaker", "speakers", "internal speaker", "built-in speaker", "built in speaker",
+            "macbook", "imac", "studio display", "display audio", "monitor", "television", " tv ",
+            "hdmi", "displayport", "airplay", "aggregate", "multi-output", "multi output", "ispk",
+            "扬声器", "揚聲器", "スピーカー"
+        ]
+        return terms.contains { text.contains($0) }
     }
 }
 

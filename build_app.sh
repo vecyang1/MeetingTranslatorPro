@@ -48,6 +48,7 @@ swiftc \
   Sources/MeetingTranslator/Services/GeminiFlashService.swift \
   Sources/MeetingTranslator/Services/GeminiLiveService.swift \
   Sources/MeetingTranslator/Services/CostTracker.swift \
+  Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift \
   Sources/MeetingTranslator/Services/SystemAudioCurrentProcessExclusionProbe.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModelRouter.swift \

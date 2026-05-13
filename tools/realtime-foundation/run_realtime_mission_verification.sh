@@ -74,6 +74,9 @@ run_shell "realtime app e2e" \
 run_shell "system audio exclusion smoke" \
   'swiftc -module-cache-path /tmp/mtp-swift-module-cache -target arm64-apple-macosx14.0 -framework ScreenCaptureKit -framework AVFoundation -framework CoreGraphics -framework Combine Sources/MeetingTranslator/Managers/SystemAudioManager.swift tools/realtime-foundation/tests/system_audio_exclusion_smoke.swift -o /tmp/system_audio_exclusion_smoke && /tmp/system_audio_exclusion_smoke'
 
+run_shell "translated audio output safety smoke" \
+  'swiftc -module-cache-path /tmp/mtp-swift-module-cache -target arm64-apple-macosx14.0 -framework CoreAudio Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift tools/realtime-foundation/tests/translated_audio_output_safety_smoke.swift -o /tmp/translated_audio_output_safety_smoke && /tmp/translated_audio_output_safety_smoke'
+
 run_shell "settings copy smoke" \
   'swiftc -module-cache-path /tmp/mtp-swift-module-cache Sources/MeetingTranslator/Models/AppSettings.swift tools/realtime-foundation/tests/settings_copy_smoke.swift -o /tmp/settings_copy_smoke && /tmp/settings_copy_smoke'
 
@@ -100,7 +103,7 @@ run "route gate: auto-detect stays transcription" \
 run "build, sign, and install app" ./build_app.sh
 
 run_shell "installed app runtime inspection" \
-  'open "/Applications/MeetingTranslator.app"; sleep 2; pgrep -fl "Meeting Translator|MeetingTranslator"; osascript -e '\''id of app "Meeting Translator"'\'' >/tmp/mtp_bundle_id.txt; grep -Fxq com.meetingtranslator.app /tmp/mtp_bundle_id.txt; /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "/Applications/MeetingTranslator.app/Contents/Info.plist" | grep -Fxq 1.1.0; /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "/Applications/MeetingTranslator.app/Contents/Info.plist" | grep -Fxq 2; codesign -dv --verbose=4 "/Applications/MeetingTranslator.app" 2>&1 | grep -F "Identifier=com.meetingtranslator.app"; strings "/Applications/MeetingTranslator.app/Contents/MacOS/MeetingTranslator" | grep -F "Live Interpretation"'
+  'open "/Applications/MeetingTranslator.app"; sleep 2; pgrep -fl "Meeting Translator|MeetingTranslator"; osascript -e '\''id of app "Meeting Translator"'\'' >/tmp/mtp_bundle_id.txt; grep -Fxq com.meetingtranslator.app /tmp/mtp_bundle_id.txt; /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "/Applications/MeetingTranslator.app/Contents/Info.plist" | grep -Fxq 1.1.1; /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "/Applications/MeetingTranslator.app/Contents/Info.plist" | grep -Fxq 3; codesign -dv --verbose=4 "/Applications/MeetingTranslator.app" 2>&1 | grep -F "Identifier=com.meetingtranslator.app"; strings "/Applications/MeetingTranslator.app/Contents/MacOS/MeetingTranslator" | grep -F "Live Interpretation"'
 
 run_shell "installed app current-process exclusion runtime probe" \
   'osascript -e '\''tell application id "com.meetingtranslator.app" to quit'\'' >/dev/null 2>&1 || true; sleep 1; PROBE_OUT=/tmp/mtp_system_audio_current_process_probe.txt; rm -f "$PROBE_OUT"; open -W "/Applications/MeetingTranslator.app" --args --run-system-audio-exclusion-probe --system-audio-exclusion-probe-output "$PROBE_OUT"; cat "$PROBE_OUT"; grep -F "system audio current-process exclusion runtime probe ok" "$PROBE_OUT"'

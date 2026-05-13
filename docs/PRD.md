@@ -163,14 +163,14 @@ Realtime work is now split into explicit feature PRDs so future agents do not bl
 |---|---|---|
 | `docs/prd_feat_openai_realtime_caption_delta_first.md` | Implemented/hardening | `gpt-realtime-whisper` source captions while speech is still arriving. |
 | `docs/prd_feat_openai_realtime_translate_interpreter.md` | Implemented and provider-verified | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
-| `docs/prd_feat_realtime_translated_audio_playback.md` | Implemented and verified | Safe preview translated audio playback from `gpt-realtime-translate` output audio, gated by explicit opt-in, interpreter gates, ScreenCaptureKit exclusion, and headphone/safe-output confirmation. |
+| `docs/prd_feat_realtime_translated_audio_playback.md` | Implemented and verified | Safe preview translated audio playback from `gpt-realtime-translate` output audio, gated by explicit opt-in, interpreter gates, ScreenCaptureKit exclusion, and route-aware headphone/non-speaker safety. |
 | `docs/prd_feat_realtime_settings_runtime_clarity.md` | Implemented locally | Settings panel reflects actual Realtime runtime controls and hides legacy Whisper + GPT timing under Realtime. |
 | `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Implemented as off-by-default delayed sidecar foundation | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
 | `docs/prd_feat_openai_realtime_translation_next_stage.md` | Historical/superseded | Retained for earlier probe notes only; do not use as completion proof. |
 
 Same-time interpretation decision: `gpt-realtime-translate` is the interpreter model. `gpt-realtime-whisper` may run beside it only to provide original-language captions and export/audit text. `gpt-realtime-2` remains reserved for future voice-agent or meeting-assistant workflows.
 
-Translated audio playback decision: M8 safe preview playback uses only `gpt-realtime-translate` output audio from `/v1/realtime/translations`. Playback remains off by default and cannot be enabled by the old placeholder preference key. Runtime passes `translatedAudioPlaybackEnabled: true` only after explicit user opt-in, Realtime interpreter gates, ScreenCaptureKit current-process audio exclusion support, and microphone/output safety confirmation all pass. Room-speaker safety is not claimed; Settings tells users to use headphones or a confirmed safe output.
+Translated audio playback decision: M8 safe preview playback uses only `gpt-realtime-translate` output audio from `/v1/realtime/translations`. Playback remains off by default and cannot be enabled by the old placeholder preference key. Runtime passes `translatedAudioPlaybackEnabled: true` only after explicit user opt-in, Realtime interpreter gates, ScreenCaptureKit current-process audio exclusion support, and microphone/output safety all pass. When the microphone is active, CoreAudio route inspection blocks likely speakers, display audio, HDMI/DisplayPort, AirPlay, aggregate/multi-output routes, and unrecognized outputs regardless of stale confirmation state. Safe-output confirmation is bound to the current route fingerprint and may unlock only positive headphone-like routes. Room-speaker safety is not claimed; Settings tells users to use headphones or a confirmed non-speaker output.
 
 ---
 
@@ -281,7 +281,8 @@ All user settings are stored in `UserDefaults` under the `com.meetingtranslator.
 | `com.meetingtranslator.realtime.translatedaudioplayback.m8.enabled` | Bool | false | Explicit safe-preview translated-audio playback opt-in; old placeholder key is ignored |
 | `com.meetingtranslator.realtime.translatedaudioplayback.m8.muted` | Bool | false | Local translated-audio mute state |
 | `com.meetingtranslator.realtime.translatedaudioplayback.m8.volume` | Double | 0.65 | Local translated-audio playback volume |
-| `com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutput` | Bool | false | Headphones/safe-output confirmation used to block microphone feedback |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutput` | Bool | false | Headphones/non-speaker output confirmation; likely speaker or display routes are blocked while mic capture is active |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutputroute` | String? | nil | Fingerprint of the exact default output route that was confirmed safe; cleared on route mismatch or safety downgrade |
 | `com.meetingtranslator.realtime.automaticfallback` | Bool | true | Switch to legacy OpenAI after bounded transient Realtime retry is exhausted |
 | `com.meetingtranslator.totalcost` | Double | 0.0 | All-time API cost |
 

@@ -20,7 +20,7 @@ Product rule:
 - realtime path owns speed and user-visible text;
 - diarization sidecar owns delayed speaker labels;
 - the sidecar may annotate rows, but must not rewrite trusted realtime transcript text by default.
-- translated-audio microphone/speaker feedback safety is owned by `docs/prd_feat_realtime_translated_audio_playback.md`, not by speaker recognition. ScreenCaptureKit current-process exclusion and headphones/safe-output confirmation prevent recapture loops; the sidecar must not claim room-speaker safety.
+- translated-audio microphone/speaker feedback safety is owned by `docs/prd_feat_realtime_translated_audio_playback.md`, not by speaker recognition. ScreenCaptureKit current-process exclusion prevents app-local system recapture, while CoreAudio output-route inspection blocks likely speaker/display output during mic capture; the sidecar must not claim room-speaker safety.
 
 Official OpenAI anchors:
 

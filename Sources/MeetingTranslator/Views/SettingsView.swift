@@ -472,7 +472,17 @@ struct SettingsView: View {
     }
 
     private var realtimeTranslatedAudioStatusColor: Color {
-        realtimeTranslatedAudioCanEnable ? .green : .secondary
+        if realtimeTranslatedAudioCanEnable { return .green }
+        switch appState.realtimeTranslatedAudioSafetyStatus {
+        case .blockedSystemCaptureIncludesAppAudio,
+             .blockedLikelySpeakerOutputWithMicActive,
+             .providerFormatUnknown,
+             .unavailable:
+            return .red
+        case .needsHeadphonesConfirmation,
+             .ready:
+            return .secondary
+        }
     }
 
     private var pipelineDiagram: some View {
@@ -601,7 +611,7 @@ struct SettingsView: View {
                 .font(.system(size: 12, weight: .medium))
                 .disabled(!realtimeTranslatedAudioCanEnable)
 
-            Toggle("Safe output confirmed", isOn: realtimeTranslatedAudioSafeOutputBinding)
+            Toggle("Headphones / non-speaker output confirmed", isOn: realtimeTranslatedAudioSafeOutputBinding)
                 .font(.system(size: 12, weight: .medium))
 
             Toggle("Mute translated audio", isOn: realtimeTranslatedAudioMutedBinding)
@@ -633,7 +643,7 @@ struct SettingsView: View {
             )
 
             infoRow(
-                text: "Uses gpt-realtime-translate output audio. Use headphones to avoid microphone feedback; room-speaker safety is not claimed.",
+                text: "Uses gpt-realtime-translate output audio. Speaker/display output is blocked while the microphone is on; use headphones to avoid feedback.",
                 icon: "headphones",
                 color: .secondary
             )

@@ -1,6 +1,6 @@
 # PRD: Realtime Translated Audio Playback
 
-**Version:** 1.0
+**Version:** 1.3
 **Date:** 2026-05-13
 **Status:** Implemented and verified
 **Stage:** M8, after M7 text interpretation
@@ -141,7 +141,7 @@ Acceptance criteria:
 - [x] `SystemAudioManager` configures ScreenCaptureKit to exclude current-process audio when supported by the local SDK/runtime.
 - [x] A synthetic system-audio probe proves translated playback from the app is not captured back into the system-audio transcription path.
 - [x] If current-process audio exclusion is unavailable or verification fails, Settings keeps playback disabled and states why.
-- [x] If microphone capture is active and the default output appears to be speakers, the UI requires a headphones/safe-output confirmation before playback starts.
+- [x] If microphone capture is active and the default output appears to be speakers, display audio, HDMI/DisplayPort, AirPlay, aggregate/multi-output, or any unrecognized route, playback is blocked even when stale playback or safe-output confirmation exists.
 - [x] Echo/duplicate suppression tests show playback does not create duplicate transcript rows in the synthetic loopback path.
 
 ### US-M8-004: Keep Rows, Costs, and Exports Stable
@@ -279,7 +279,17 @@ enum TranslatedAudioSafetyStatus: Equatable {
 }
 ```
 
-The first release may allow user-confirmed headphones preview if output-device classification is imperfect, but it must not claim room-speaker safety. The Settings copy must say "Use headphones to avoid microphone feedback" when mic capture is on.
+M8 uses `AudioOutputRouteInspector.currentDefaultOutputRoute()` to read the CoreAudio default output route name, UID, transport, manufacturer, and data source. `RealtimeTranslatedAudioOutputSafety` then classifies likely room speakers, built-in Mac speakers, display audio, HDMI/DisplayPort, AirPlay, aggregate/multi-output routes, unrecognized outputs, and headphone-like routes.
+
+Rules:
+
+- likely speaker/display/shared routes are blocked while microphone capture is active, regardless of saved confirmation state;
+- stale playback opt-in and safe-output confirmation are cleared when a blocked or unrecognized route is detected;
+- confirmation is bound to the current output-route fingerprint and must be cleared on route mismatch;
+- default-output route changes must refresh the safety gate immediately and stop/reroute active translated playback when the new route is unsafe;
+- confirmation may unlock only positive headphone-like routes;
+- if the output route cannot be identified, playback remains unavailable instead of guessing;
+- Settings copy must say speaker/display output is blocked while the microphone is on and direct users to headphones/non-speaker output.
 
 ### FR-M8-007: UI Contract
 
@@ -458,7 +468,7 @@ This PRD is complete only when:
 - [x] `session.output_audio.delta` is decoded, queued, and played or captured in the synthetic safe-output path.
 - [x] `session.output_audio.done`, Stop, mute, route downgrade, and reconnect clear or drain audio predictably.
 - [x] System audio capture config excludes current-process audio, with a local smoke test guarding the ScreenCaptureKit setting.
-- [x] Microphone/speaker feedback is blocked or requires headphones/safe-output confirmation.
+- [x] Microphone/speaker feedback is blocked for likely speaker/display routes and otherwise requires headphones/non-speaker confirmation.
 - [x] Source captions, translated text, row attachment, export, and cost tracking remain stable in local smokes.
 - [x] Settings and main-window controls are clear, small, and honest about safety.
 - [x] Core smoke, app E2E, Settings smoke, provider probes, `./build_app.sh`, app launch/runtime inspection, and GitNexus `detect-changes` all pass.
@@ -494,3 +504,4 @@ Stop and report before continuing if:
 | 2026-05-13 | 1.0 | Goal-ready M8 PRD for safe translated audio playback using `gpt-realtime-translate` output audio, with feedback-safety gates and synthetic verification requirements. |
 | 2026-05-13 | 1.1 | Recorded the local M8 implementation contract: off-by-default safe preview controls, M8 persistence keys, focused PCM16 playback manager, ScreenCaptureKit exclusion config smoke, and provider capture-output probe support. |
 | 2026-05-13 | 1.2 | Marked M8 implemented and verified after full mission verification passed with installed-app current-process audio exclusion proof, captured translated output WAVs, build/install/runtime checks, and GitNexus detect-changes. |
+| 2026-05-13 | 1.3 | Tightened microphone feedback safety after live use showed MacBook speaker playback could re-enter the microphone. CoreAudio output-route inspection now blocks likely speaker/display/HDMI/AirPlay/aggregate/unrecognized routes while mic capture is active, binds confirmation to the exact route fingerprint, and clears stale playback opt-in plus safe-output confirmation on safety downgrade. |

@@ -149,7 +149,7 @@ Show when selected engine is Realtime:
 - source-language prerequisite status;
 - `Live interpreter session` toggle;
 - detail line: "Uses `gpt-realtime-translate`; source captions use `gpt-realtime-whisper` for audit.";
-- translated audio subsection from `docs/prd_feat_realtime_translated_audio_playback.md`: off-by-default Safe preview toggle, mute, volume, safety status, disabled reason, safe-output confirmation, and route detail that names `gpt-realtime-translate` output audio.
+- translated audio subsection from `docs/prd_feat_realtime_translated_audio_playback.md`: off-by-default Safe preview toggle, mute, volume, safety status, disabled reason, route-aware headphones/non-speaker confirmation, and route detail that names `gpt-realtime-translate` output audio.
 
 The "Live interpreter session" toggle should be enabled only when enough prerequisites exist to make the choice meaningful. If the UI allows toggling early, status must still prevent runtime spend until gates are true.
 
@@ -236,7 +236,7 @@ Required smoke tests:
 - [x] Live interpretation clearly names `gpt-realtime-translate` as the interpreter model.
 - [x] Whisper is presented only as source-caption sidecar in interpreter mode.
 - [x] All interpreter prerequisites are visible and testable.
-- [x] Translated audio playback is off by default, safe-preview only, and honest about headphones/safe-output requirements.
+- [x] Translated audio playback is off by default, safe-preview only, blocks speaker/display/shared/unrecognized output while mic capture is active, and is honest about route-bound headphones/non-speaker output requirements.
 - [x] Display follow behavior is separate and does not restart sessions.
 - [x] Smoke tests and installed-app Settings inspection pass.
 

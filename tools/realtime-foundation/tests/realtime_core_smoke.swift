@@ -75,7 +75,96 @@ struct RealtimeCoreSmoke {
 
         precondition(TranslatedAudioSafetyStatus.ready.userMessage.contains("Ready"))
         precondition(TranslatedAudioSafetyStatus.needsHeadphonesConfirmation.userMessage.contains("headphones"))
+        precondition(TranslatedAudioSafetyStatus.blockedLikelySpeakerOutputWithMicActive.userMessage.contains("speakers"))
         precondition(TranslatedAudioSafetyStatus.providerFormatUnknown.userMessage.contains("audio format"))
+
+        let macbookSpeakers = RealtimeTranslatedAudioOutputRoute(
+            name: "MacBook Pro Speakers",
+            manufacturer: "Apple Inc.",
+            transportType: "built-in",
+            dataSource: "ispk"
+        )
+        precondition(RealtimeTranslatedAudioOutputSafety.isLikelyRoomSpeaker(macbookSpeakers))
+        precondition(!RealtimeTranslatedAudioOutputSafety.isLikelyHeadphones(macbookSpeakers))
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: true,
+                confirmedRouteFingerprint: macbookSpeakers.fingerprint,
+                route: macbookSpeakers
+            ) == .blockedLikelySpeakerOutputWithMicActive
+        )
+
+        let headphones = RealtimeTranslatedAudioOutputRoute(
+            name: "AirPods Pro",
+            manufacturer: "Apple Inc.",
+            transportType: "bluetooth",
+            dataSource: "hdpn",
+            uniqueID: "airpods-pro-output"
+        )
+        precondition(RealtimeTranslatedAudioOutputSafety.isLikelyHeadphones(headphones))
+        precondition(!RealtimeTranslatedAudioOutputSafety.isLikelyRoomSpeaker(headphones))
+        precondition(RealtimeTranslatedAudioOutputSafety.isConfirmableNonSpeakerRoute(headphones))
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: false,
+                confirmedRouteFingerprint: nil,
+                route: headphones
+            ) == .needsHeadphonesConfirmation
+        )
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: true,
+                confirmedRouteFingerprint: "other-route",
+                route: headphones
+            ) == .needsHeadphonesConfirmation
+        )
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: true,
+                confirmedRouteFingerprint: headphones.fingerprint,
+                route: headphones
+            ) == .ready
+        )
+
+        let bluetoothSpeaker = RealtimeTranslatedAudioOutputRoute(
+            name: "JBL Charge 5",
+            manufacturer: "JBL",
+            transportType: "bluetooth",
+            dataSource: nil,
+            uniqueID: "jbl-charge-output"
+        )
+        precondition(!RealtimeTranslatedAudioOutputSafety.isLikelyHeadphones(bluetoothSpeaker))
+        precondition(!RealtimeTranslatedAudioOutputSafety.isConfirmableNonSpeakerRoute(bluetoothSpeaker))
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: true,
+                confirmedRouteFingerprint: bluetoothSpeaker.fingerprint,
+                route: bluetoothSpeaker
+            ) == .unavailable("current output is not recognized as headphones or a safe non-speaker route")
+        )
+
+        let aggregateRoute = RealtimeTranslatedAudioOutputRoute(
+            name: "Multi-Output Device",
+            manufacturer: "Apple Inc.",
+            transportType: "aggregate",
+            dataSource: nil,
+            uniqueID: "aggregate-output"
+        )
+        precondition(RealtimeTranslatedAudioOutputSafety.isLikelyRoomSpeaker(aggregateRoute))
+        precondition(
+            RealtimeTranslatedAudioOutputSafety.status(
+                isMicEnabled: true,
+                safeOutputConfirmed: true,
+                confirmedRouteFingerprint: aggregateRoute.fingerprint,
+                route: aggregateRoute
+            ) == .blockedLikelySpeakerOutputWithMicActive
+        )
+
         precondition(RealtimeTranslatedAudioPlaybackGate.mayEnable(
             showTranslations: true,
             inputLanguageCount: 1,

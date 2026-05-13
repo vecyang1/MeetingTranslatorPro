@@ -1,11 +1,11 @@
 ---
 name: openairealtime
-description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 84 symbols across 14 files."
+description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 86 symbols across 13 files."
 ---
 
 # OpenAIRealtime
 
-84 symbols | 14 files | Cohesion: 83%
+86 symbols | 13 files | Cohesion: 82%
 
 ## When to Use
 
@@ -18,23 +18,23 @@ description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 84 symb
 | File | Symbols |
 |------|---------|
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | canMerge, shouldDropUnstableShortFragment, mergedText, canDropNoNewContent, consolidateFinalEntries (+12) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift` | OpenAIRealtimeWebSocketService, connect, disconnect, sendJSON, processServerEvent (+6) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | OpenAIRealtimeAgentService, connect, sendSessionUpdate, processServerEvent, finalTranscriptSegments (+4) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift` | reset, reduce, expirePartials, updateItem, reducedEntry (+3) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | OpenAIRealtimeTranscriptionService, connect, commitAudio, sendSessionUpdate, processServerEvent (+3) |
-| `Sources/MeetingTranslator/Managers/AppState.swift` | realtimeMergeCandidate, consolidateRecentRealtimeUtterances, mergeTranslations, scheduleOpenAIRealtimeRecoveryIfNeeded, restartOpenAIRealtimeAfterRecoverableError (+1) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift` | start, stop, wire, expirePartials, sendAudio (+1) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | OpenAIRealtimeTranslationService, connect, processServerEvent, rotateTurnIDIfFallbackID, sendAudio |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | reset, contextualizedAudio, tailData, updateTail, reset |
-| `tools/realtime-foundation/tests/realtime_app_e2e.swift` | apply, runSyntheticCaptionE2E, runSyntheticTranslationE2E |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift` | connect, disconnect, sendJSON, processServerEvent, handleDisconnectError (+6) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | reset, status, isConfirmableNonSpeakerRoute, isLikelyHeadphones, isLikelyRoomSpeaker (+4) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | connect, sendSessionUpdate, processServerEvent, finalTranscriptSegments, eventItemID (+4) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | connect, commitAudio, sendSessionUpdate, processServerEvent, rotateTurnIDIfFallbackID (+3) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift` | reduce, expirePartials, updateItem, reducedEntry, key (+3) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift` | expirePartials, sendAudio, resetTranscriptionBoundaryContext, start, stop (+1) |
+| `Sources/MeetingTranslator/Managers/AppState.swift` | realtimeMergeCandidate, consolidateRecentRealtimeUtterances, mergeTranslations, currentRealtimeTranslatedAudioSafetyStatus, routeRealtimeAudioChunk |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | connect, processServerEvent, rotateTurnIDIfFallbackID, sendAudio, OpenAIRealtimeTranslationService |
+| `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | currentDefaultOutputRoute, stringProperty, uint32Property |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`realtimeMergeCandidate`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:927`
-- **`consolidateRecentRealtimeUtterances`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:953`
-- **`mergeTranslations`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:966`
+- **`realtimeMergeCandidate`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:999`
+- **`consolidateRecentRealtimeUtterances`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1025`
+- **`mergeTranslations`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1038`
 - **`canMerge`** (Function) — `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift:3`
 - **`shouldDropUnstableShortFragment`** (Function) — `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift:32`
 
@@ -46,9 +46,9 @@ Start here when exploring this area:
 | `OpenAIRealtimeTranslationService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | 2 |
 | `OpenAIRealtimeTranscriptionService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | 2 |
 | `OpenAIRealtimeAgentService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | 2 |
-| `realtimeMergeCandidate` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 927 |
-| `consolidateRecentRealtimeUtterances` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 953 |
-| `mergeTranslations` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 966 |
+| `realtimeMergeCandidate` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 999 |
+| `consolidateRecentRealtimeUtterances` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1025 |
+| `mergeTranslations` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1038 |
 | `canMerge` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 3 |
 | `shouldDropUnstableShortFragment` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 32 |
 | `mergedText` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 69 |
@@ -61,28 +61,28 @@ Start here when exploring this area:
 | `endsWithTerminalPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 324 |
 | `isLeadingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 348 |
 | `isTrailingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 352 |
-| `apply` | Function | `tools/realtime-foundation/tests/realtime_app_e2e.swift` | 9 |
+| `reset` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 238 |
 
 ## Execution Flows
 
 | Flow | Type | Steps |
 |------|------|-------|
-| `SetupOpenAIRealtimeCallbacks → Disconnect` | cross_community | 7 |
-| `SetupOpenAIRealtimeCallbacks → Reset` | cross_community | 7 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → IsLikelyHeadphones` | cross_community | 7 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → Disconnect` | cross_community | 7 |
 | `ConsolidateRecentRealtimeUtterances → IsBoundary` | cross_community | 7 |
-| `HandleOpenAIRealtimeEvent → IsSameLanguage` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → ActiveAudioSources` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → ShowError` | cross_community | 6 |
+| `HandleOpenAIRealtimeEvent → Disconnect` | cross_community | 6 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → StringProperty` | cross_community | 6 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → Uint32Property` | cross_community | 6 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → RealtimeTranslatedAudioOutputRoute` | cross_community | 6 |
+| `SetupOpenAIRealtimeCallbacks → Disconnect` | cross_community | 6 |
 | `ScheduleOpenAIRealtimeRecoveryIfNeeded → Disconnect` | cross_community | 6 |
 | `ScheduleOpenAIRealtimeRecoveryIfNeeded → Reset` | cross_community | 6 |
-| `SetupBindings → Reset` | cross_community | 6 |
-| `RealtimeMergeCandidate → IsBoundary` | cross_community | 6 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Managers | 4 calls |
+| Managers | 2 calls |
 | Realtime-foundation | 2 calls |
 
 ## How to Explore

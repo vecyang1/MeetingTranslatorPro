@@ -27,8 +27,8 @@ struct SettingsCopySmoke {
         precondition(settings.contains("Done saves persistent settings"))
         precondition(settings.contains("Translated Audio"))
         precondition(settings.contains("Uses gpt-realtime-translate output audio"))
-        precondition(settings.contains("Use headphones to avoid microphone feedback"))
-        precondition(settings.contains("Safe output confirmed"))
+        precondition(settings.contains("Speaker/display output is blocked while the microphone is on"))
+        precondition(settings.contains("Headphones / non-speaker output confirmed"))
         precondition(settings.contains("realtimeTranslatedAudioPlaybackBinding"))
         precondition(settings.contains("no audio is sent while this mode is Off"))
         precondition(settings.contains("add an OpenAI API key before starting live interpretation"))
@@ -36,6 +36,7 @@ struct SettingsCopySmoke {
         let appStatePath = "Sources/MeetingTranslator/Managers/AppState.swift"
         let appState = try! String(contentsOfFile: appStatePath, encoding: .utf8)
         precondition(appState.contains("realtime.translatedaudioplayback.m8.enabled"))
+        precondition(appState.contains("realtime.translatedaudioplayback.m8.safeoutputroute"))
         precondition(!appState.contains("forKey: realtimeTranslatedAudioPlaybackKey"))
         precondition(appState.contains("Translated audio playback: enabled"))
         precondition(appState.contains("Playback mode: safe preview"))
