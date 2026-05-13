@@ -1,7 +1,7 @@
 # Product Requirements Document — Meeting Translator Pro
 
-**Version:** 2.2
-**Last Updated:** 2026-05-10
+**Version:** 2.3
+**Last Updated:** 2026-05-13
 **Status:** Active Development
 **Platform:** macOS 14.0+ (Sonoma)
 
@@ -40,10 +40,10 @@ Four transcription engines are supported, each with different latency/accuracy/c
 
 | Engine | Latency | Accuracy | Cost | Architecture |
 |---|---|---|---|---|
-| **OpenAI (Whisper + GPT)** | 10–15s | Highest | Medium | Two-step: `gpt-4o-mini-transcribe` for STT, `gpt-4o-mini` for translation |
+| **OpenAI (Whisper + GPT)** | 10–15s | Highest | Medium | Legacy fallback: `gpt-4o-mini-transcribe` for STT, `gpt-4o-mini` for translation |
 | **Gemini 2.5 Flash** | 3–5s | High | Low | Single API call: transcription + translation in one request |
 | **Gemini 3.1 Flash Live** | <1s | Good | Lowest | WebSocket streaming: real-time STT via `inputAudioTranscription`, then separate translation |
-| **OpenAI Realtime (Recommended)** | <1s target | High | Medium | WebSocket sessions using `gpt-realtime-2` for direct live captions/dialog understanding, with gated `gpt-realtime-translate` only for explicit translated-audio interpretation |
+| **OpenAI Realtime (Recommended)** | <1s target | High | Medium | WebSocket sessions using `gpt-realtime-whisper` transcript deltas for caption-first live text, with `gpt-realtime-2` reserved for dialog/assistant understanding and gated `gpt-realtime-translate` plus a Whisper source-caption sidecar for explicit live interpreter mode |
 
 ### 3.3 Two-Layer Pipeline
 
@@ -147,7 +147,27 @@ The OpenAI Realtime feature PRD lives at `docs/prd_feat_openai_realtime_voice_fo
 - Native Swift services under `Sources/MeetingTranslator/Services/OpenAIRealtime/`.
 - A coordinator boundary so `AppState` remains responsible for app orchestration and entry confirmation, not raw Realtime protocol parsing.
 
-Realtime translation sessions are stricter than ordinary text translation: they start only when translations are visible, the input language is explicitly pinned to a different language than the output, and translated-audio playback is enabled. Text-first OpenAI Realtime stays on `gpt-realtime-2`; when the source language is pinned and differs from the target, Realtime-2 outputs the target text directly instead of AppState adding a second GPT translation call. Auto-detect remains caption-first until there is a reliable language gate.
+The current M6 realtime priority is caption-first: OpenAI Realtime should use `gpt-realtime-whisper` transcript deltas so grey/live text appears while the user is still speaking. `gpt-realtime-2` is reserved for dialog understanding and future approval-gated assistant features. Realtime translation with `gpt-realtime-translate` is the M7 stage and remains gated by visible translations, pinned non-same source language, and an explicit interpreter-session gate. In M7, source captions are still proven by a paired `gpt-realtime-whisper` source-caption sidecar because live provider probes showed translation output events from `gpt-realtime-translate` but did not consistently emit source transcript events.
+
+Cost-driven model choice: realtime captions use `gpt-realtime-whisper` at about `$1.02/hour/source`; translation output uses `gpt-realtime-translate` at about `$2.04/hour/source`; M7 live interpreter with source captions runs both and is about `$3.06/hour/source`. `gpt-realtime-2` is token-metered and roughly `$5.76/hour` for one hour of user audio plus one hour of assistant audio, so it should not be the default translation engine.
+
+Readability rule: Realtime provider final items are transport chunks, not guaranteed sentence boundaries. The app keeps live partials visible, then merges nearby same-source `gpt-realtime-whisper` finals into readable utterance rows, filters unstable tiny fragments, and lets CJK row text wrap naturally instead of inserting manual newlines.
+
+Settings rule: when `OpenAI Realtime (Recommended)` is selected, Settings shows Realtime controls only. Legacy Whisper + GPT fast/stitch timing lives under the fallback engine so users do not mistake those intervals for `gpt-realtime-whisper` controls.
+
+### 3.12 Realtime Feature PRD Map
+
+Realtime work is now split into explicit feature PRDs so future agents do not blur captions, interpretation, settings, and speaker labels:
+
+| PRD | Status | Product boundary |
+|---|---|---|
+| `docs/prd_feat_openai_realtime_caption_delta_first.md` | Implemented/hardening | `gpt-realtime-whisper` source captions while speech is still arriving. |
+| `docs/prd_feat_openai_realtime_translate_interpreter.md` | Goal-ready | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
+| `docs/prd_feat_realtime_settings_runtime_clarity.md` | Goal-ready | Settings panel must reflect actual Realtime runtime controls and hide legacy Whisper + GPT timing under Realtime. |
+| `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Goal-ready for later M8 | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
+| `docs/prd_feat_openai_realtime_translation_next_stage.md` | Historical/superseded | Retained for earlier probe notes only; do not use as completion proof. |
+
+Same-time interpretation decision: `gpt-realtime-translate` is the interpreter model. `gpt-realtime-whisper` may run beside it only to provide original-language captions and export/audit text. `gpt-realtime-2` remains reserved for future voice-agent or meeting-assistant workflows.
 
 ---
 
@@ -218,8 +238,8 @@ The UI follows a **glassmorphic design** using macOS vibrancy effects (`NSVisual
 
 1. **Title Bar:** App name, engine badge, status indicator, processing count, recording timer, session cost
 2. **Language Bar:** Input language selector (auto-detect or pinned) + output language selector + swap button
-3. **Transcription List:** Scrollable timeline of `TranscriptionRowView` cards, each showing timestamp, speaker badge, language tag, original text, and translation bubble
-4. **Control Bar:** Start/Stop button, audio level indicators, translation toggle, export button, clear button, entry count
+3. **Transcription List:** Scrollable timeline of `TranscriptionRowView` cards, each showing timestamp, speaker badge, language tag, original text, and translation bubble. Live draft text updates without implicit layout animation, so grey interim text grows downward instead of visually vibrating the timeline.
+4. **Control Bar:** Start/Stop button, audio level indicators, follow-latest captions toggle, translation toggle, export button, clear button, entry count
 
 ---
 
@@ -244,17 +264,19 @@ All user settings are stored in `UserDefaults` under the `com.meetingtranslator.
 | `com.meetingtranslator.apikey` | String | "" | OpenAI API key |
 | `com.meetingtranslator.googleapikey` | String | "" | Google Gemini API key |
 | `com.meetingtranslator.targetlang` | String | "English" | Output language |
-| `com.meetingtranslator.engine` | String | "OpenAI Whisper + GPT" | Selected engine |
+| `com.meetingtranslator.engine` | String | "OpenAI Realtime (Recommended)" | Selected engine for fresh installs; existing saved user preference is preserved |
 | `com.meetingtranslator.showtranslations` | Bool | true | Translation display toggle |
+| `com.meetingtranslator.followlatestcaptions` | Bool | true | Timeline auto-follow toggle; when false, new captions do not force the scroll position to the bottom |
 | `com.meetingtranslator.fastinterval` | Double | 3.0 | Fast draft interval (seconds) |
 | `com.meetingtranslator.stitchinterval` | Double | 15.0 | Stitch pass interval (seconds) |
 | `com.meetingtranslator.geminiquality` | Double | 12.0 | Gemini quality pass interval |
-| `com.meetingtranslator.noisegate` | Double | 0.003 | RMS noise gate threshold |
+| `com.meetingtranslator.noisegate` | Double | 0.003 | Shared RMS input-filter threshold applied before all engine routes |
 | `com.meetingtranslator.inputlanguages` | [String] | [] | Expected input languages |
 | `com.meetingtranslator.realtime.captionlatency` | String | "Balanced" | OpenAI Realtime caption latency preset |
 | `com.meetingtranslator.realtime.reasoningeffort` | String | "low" | `gpt-realtime-2` effort setting; kept low for live caption latency |
+| `com.meetingtranslator.realtime.interpretersessionenabled` | Bool | false | Explicit M7 live interpreter session gate for `gpt-realtime-translate` |
 | `com.meetingtranslator.realtime.translatedaudioplayback` | Bool | false | Reserved translated-audio playback toggle |
-| `com.meetingtranslator.realtime.automaticfallback` | Bool | true | Switch to legacy OpenAI after recoverable realtime failure |
+| `com.meetingtranslator.realtime.automaticfallback` | Bool | true | Switch to legacy OpenAI after bounded transient Realtime retry is exhausted |
 | `com.meetingtranslator.totalcost` | Double | 0.0 | All-time API cost |
 
 ---
@@ -280,7 +302,7 @@ The app is distributed as a local build, not through the App Store. The bundle i
 
 The following are explicitly out of scope for the current version:
 
-- **Speaker diarization:** The app does not distinguish between different remote speakers (all system audio is attributed to "Speaker")
+- **Speaker diarization in the realtime core:** The app does not distinguish between different remote speakers in the live caption/interpreter route. Optional delayed labels are planned separately in `docs/prd_feat_realtime_speaker_recognition_sidecar.md`.
 - **Offline mode:** All transcription and translation requires internet connectivity and API keys
 - **App Store distribution:** The app uses non-sandboxed entitlements for ScreenCaptureKit access
 - **iOS/iPadOS support:** macOS only, due to ScreenCaptureKit and AVAudioEngine dependencies
@@ -297,3 +319,4 @@ The following are explicitly out of scope for the current version:
 | 2026-04-03 | 2.0 | Same-language suppression, translation toggle gates API calls, AGENTS.md, PRD/API docs |
 | 2026-04-03 | 2.1 | Echo/duplicate suppression via character-bigram Dice coefficient deduplication |
 | 2026-05-10 | 2.2 | Added OpenAI Realtime foundation: skill/CLI, native Swift services, gated translation sessions, and runtime probes |
+| 2026-05-13 | 2.3 | Added canonical Realtime Translate interpreter PRD, Settings clarity PRD, and delayed speaker-recognition sidecar PRD. |
