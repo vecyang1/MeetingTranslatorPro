@@ -110,15 +110,15 @@ As a user following a foreign-language meeting, I want to hear translated audio 
 
 Acceptance criteria:
 
-- [ ] Playback is off by default for fresh installs and existing installs.
-- [ ] Settings exposes playback only under Realtime `Live Interpretation`, not under caption-only controls.
-- [ ] Playback can be enabled only when M7 text interpreter gates are true:
+- [x] Playback is off by default for fresh installs and existing installs.
+- [x] Settings exposes playback only under Realtime `Live Interpretation`, not under caption-only controls.
+- [x] Playback can be enabled only when M7 text interpreter gates are true:
   - `showTranslations == true`;
   - exactly one source language is pinned;
   - source language differs from target language;
   - `realtimeInterpreterSessionEnabled == true`.
-- [ ] Playback remains unavailable with a clear reason when system-audio feedback safety cannot be proven.
-- [ ] Enabling playback reroutes the active Realtime translation session without starting hidden caption-only translation spend.
+- [x] Playback remains unavailable with a clear reason when system-audio feedback safety cannot be proven.
+- [x] Enabling playback reroutes the active Realtime translation session without starting hidden caption-only translation spend.
 
 ### US-M8-002: Hear Streaming Translated Audio
 
@@ -126,11 +126,11 @@ As a user, I want translated audio to begin during a long synthetic utterance, n
 
 Acceptance criteria:
 
-- [ ] `session.output_audio.delta` is decoded from base64 PCM and queued for playback.
-- [ ] First playable audio is observed before a long synthetic utterance ends.
-- [ ] Audio playback continues through multiple 200 ms deltas without clicks from buffer underflow in the local synthetic smoke path.
-- [ ] `session.output_audio.done` drains or closes the current translated-audio segment without cutting off queued audio.
-- [ ] Muting stops output immediately while text captions continue.
+- [x] `session.output_audio.delta` is decoded from base64 PCM and queued for playback.
+- [x] First playable audio is observed before a long synthetic utterance ends.
+- [x] Audio playback continues through multiple 200 ms deltas without clicks from buffer underflow in the local synthetic smoke path.
+- [x] `session.output_audio.done` drains or closes the current translated-audio segment without cutting off queued audio.
+- [x] Muting stops output immediately while text captions continue.
 
 ### US-M8-003: Do Not Feed Back Into Capture
 
@@ -138,11 +138,11 @@ As a user, I do not want translated audio to be transcribed again as meeting spe
 
 Acceptance criteria:
 
-- [ ] `SystemAudioManager` configures ScreenCaptureKit to exclude current-process audio when supported by the local SDK/runtime.
-- [ ] A synthetic system-audio probe proves translated playback from the app is not captured back into the system-audio transcription path.
-- [ ] If current-process audio exclusion is unavailable or verification fails, Settings keeps playback disabled and states why.
-- [ ] If microphone capture is active and the default output appears to be speakers, the UI requires a headphones/safe-output confirmation before playback starts.
-- [ ] Echo/duplicate suppression tests show playback does not create duplicate transcript rows in the synthetic loopback path.
+- [x] `SystemAudioManager` configures ScreenCaptureKit to exclude current-process audio when supported by the local SDK/runtime.
+- [x] A synthetic system-audio probe proves translated playback from the app is not captured back into the system-audio transcription path.
+- [x] If current-process audio exclusion is unavailable or verification fails, Settings keeps playback disabled and states why.
+- [x] If microphone capture is active and the default output appears to be speakers, the UI requires a headphones/safe-output confirmation before playback starts.
+- [x] Echo/duplicate suppression tests show playback does not create duplicate transcript rows in the synthetic loopback path.
 
 ### US-M8-004: Keep Rows, Costs, and Exports Stable
 
@@ -150,11 +150,11 @@ As a user, I want translated audio to be an extra output, not a source of transc
 
 Acceptance criteria:
 
-- [ ] Source captions and translated text still attach to one stable row in source-first and output-first event orders.
-- [ ] Playback chunks do not create transcript rows.
-- [ ] Cost tracking keeps source-caption, realtime-translate, and playback state separate.
-- [ ] Cost UI does not double count playback as a second model session unless official billing docs require a separate output-audio lane.
-- [ ] Export remains text-only by default and includes a metadata note when translated audio playback was active.
+- [x] Source captions and translated text still attach to one stable row in source-first and output-first event orders.
+- [x] Playback chunks do not create transcript rows.
+- [x] Cost tracking keeps source-caption, realtime-translate, and playback state separate.
+- [x] Cost UI does not double count playback as a second model session unless official billing docs require a separate output-audio lane.
+- [x] Export remains text-only by default and includes a metadata note when translated audio playback was active.
 
 ### US-M8-005: Stop, Mute, and Failure Behavior
 
@@ -162,11 +162,11 @@ As a user, I want playback to stop predictably when I stop recording, mute outpu
 
 Acceptance criteria:
 
-- [ ] Stop recording immediately stops playback and clears queued translated audio.
-- [ ] Turning off `Show translations`, changing source language to Auto, changing target to same language, or disabling interpreter mode stops playback and reconnects/downgrades the realtime route safely.
-- [ ] Realtime reconnect clears stale audio queues before a new translation session becomes audible.
-- [ ] Permanent provider errors do not leave a stuck speaker icon or stale "playing" state.
-- [ ] Automatic fallback to legacy Whisper + GPT disables playback because legacy fallback does not provide realtime translated audio.
+- [x] Stop recording immediately stops playback and clears queued translated audio.
+- [x] Turning off `Show translations`, changing source language to Auto, changing target to same language, or disabling interpreter mode stops playback and reconnects/downgrades the realtime route safely.
+- [x] Realtime reconnect clears stale audio queues before a new translation session becomes audible.
+- [x] Permanent provider errors do not leave a stuck speaker icon or stale "playing" state.
+- [x] Automatic fallback to legacy Whisper + GPT disables playback because legacy fallback does not provide realtime translated audio.
 
 ---
 
