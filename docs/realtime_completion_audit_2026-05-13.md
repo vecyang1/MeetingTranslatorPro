@@ -1,0 +1,102 @@
+# Realtime Completion Audit - 2026-05-13
+
+## Objective
+
+Implement the remaining Meeting Translator Pro realtime mission end to end from the committed PRDs, using `gpt-realtime-translate` for same-time interpretation, preserving existing behavior, verifying with tests/probes/build/runtime inspection, updating docs/skills, and committing meaningful milestones.
+
+## Current State
+
+- Latest local commit: `b17194c26d69af6b211ed7fe5c9c123bb7f21d43` (`feat: wire realtime interpreter gates and settings`)
+- Worktree at audit time: clean
+- Local implementation status: committed
+- Full completion status: blocked on valid OpenAI credentials for live provider probes
+
+## Prompt-to-Artifact Checklist
+
+| Requirement | Evidence | Status |
+|---|---|---|
+| Use `gpt-realtime-translate` as the only realtime interpreter model | `RealtimeModelRouter`, `OpenAIRealtimeTranslationService`, `docs/API.md`, `docs/PRD.md`, realtime foundation skill | Done locally |
+| Caption-only mode stays on `gpt-realtime-whisper` and does not start hidden translation spend | Router gates, CLI recommend smoke, realtime app E2E | Done locally |
+| Translation route starts only when translations are visible, exactly one source language is pinned, source != target, and interpreter session is enabled | `AppState.shouldUseRealtimeTranslationSession`, `RealtimeModelRouter.route`, smoke tests | Done locally |
+| `gpt-realtime-whisper` may be used only as source-caption sidecar in interpreter mode | Coordinator paired-session path and docs | Done locally |
+| `gpt-realtime-2` reserved for assistant/dialog/tool workflows | Router and docs/API/skill wording | Done locally |
+| Translated audio playback stays disabled | `translatedAudioPlaybackEnabled: false`, translation service suppression, Settings copy, smoke tests | Done locally |
+| Source caption and translated text attach to one stable row in source-first and output-first orders | `RealtimeEventReducer` superseded-item handling and app E2E | Done locally |
+| Settings separates Realtime Captions, Live Interpretation, Display Behavior, Audio Input Filter, Speaker Recognition, and legacy fallback controls | `SettingsView`, settings copy smoke, installed binary string inspection | Done locally |
+| Speaker recognition is delayed sidecar, off by default, not in Realtime path, and does not rewrite transcript text | `SpeakerRecognitionMode`, `SpeakerDiarizationMatcher`, request builder, docs/API | Done locally |
+| Cost separation for caption, translation, and agent lanes | `CostTracker`, realtime core smoke, docs/API | Done locally |
+| Docs and skill references updated | `docs/PRD.md`, `docs/API.md`, `CHANGELOG.md`, `.agents/skills/openai-realtime-voice-foundation/SKILL.md` and references | Done locally |
+| Build/sign/install path preserved | `./build_app.sh` passed; installed `/Applications/MeetingTranslator.app`; bundle id `com.meetingtranslator.app`; Apple Development signature inspected | Done locally |
+| GitNexus detect-changes before final claim | Staged detect reviewed before commit; post-commit detect reports no uncommitted changes | Done locally |
+| Provider probes with synthetic/non-private audio | Current `OPENAI_API_KEY` missing; saved app default key returns HTTP 401 for `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` | Blocked |
+
+## Fresh Local Verification Summary
+
+Commands rerun after the local milestone commit:
+
+```bash
+git diff --check
+swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/*.swift tools/realtime-foundation/tests/realtime_core_smoke.swift -o /tmp/realtime_core_smoke && /tmp/realtime_core_smoke
+swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/*.swift tools/realtime-foundation/tests/realtime_app_e2e.swift -o /tmp/realtime_app_e2e && /tmp/realtime_app_e2e
+swiftc Sources/MeetingTranslator/Models/AppSettings.swift tools/realtime-foundation/tests/settings_copy_smoke.swift -o /tmp/settings_copy_smoke && /tmp/settings_copy_smoke
+swiftc tools/realtime-foundation/tests/settings_noise_gate_ui_smoke.swift -o /tmp/settings_noise_gate_ui_smoke && /tmp/settings_noise_gate_ui_smoke
+swiftc tools/realtime-foundation/tests/transcript_follow_ui_smoke.swift -o /tmp/transcript_follow_ui_smoke && /tmp/transcript_follow_ui_smoke
+swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift tools/realtime-foundation/tests/language_detector_smoke.swift -o /tmp/language_detector_smoke && /tmp/language_detector_smoke
+swiftc tools/realtime-foundation/tests/app_logo_ui_smoke.swift -o /tmp/app_logo_ui_smoke && /tmp/app_logo_ui_smoke
+python3 tools/realtime-foundation/tests/app_icon_visual_smoke.py
+tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --pinned-source-language --interpreter-session
+tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --no-pinned-source-language --interpreter-session
+./build_app.sh
+```
+
+Observed results:
+
+- `realtime core smoke ok`
+- `realtime app e2e ok`
+- `settings copy smoke ok`
+- `settings noise gate UI smoke ok`
+- `transcript follow UI smoke ok`
+- `language detector smoke ok`
+- `app logo UI smoke ok`
+- `app icon visual smoke ok`
+- CLI pinned interpreter route selected `gpt-realtime-translate`
+- CLI no-pinned-source route stayed on `gpt-realtime-whisper`
+- Build succeeded, signed, and installed `/Applications/MeetingTranslator.app`
+
+Installed app runtime inspection:
+
+- Process launched from `/Applications/MeetingTranslator.app/Contents/MacOS/MeetingTranslator`
+- Bundle id: `com.meetingtranslator.app`
+- Bundle version: `1.0.0` / build `1`
+- Signing identifier: `com.meetingtranslator.app`
+- Installed binary contains `Realtime Captions`, `Live Interpretation`, `Speaker Recognition`, `Legacy Fallback Controls`, and `gpt-realtime-translate`
+
+## Provider Probe Blocker
+
+Provider probes were rerun and failed only because credentials are invalid:
+
+```text
+gpt-realtime-whisper: HTTP 401 Incorrect API key provided: 243243243243.
+gpt-realtime-translate: HTTP 401 Incorrect API key provided: 243243243243.
+gpt-realtime-2: HTTP 401 Incorrect API key provided: 243243243243.
+```
+
+Credential state at audit time:
+
+- `OPENAI_API_KEY`: missing from process environment
+- Keychain `OPENAI_API_KEY`: missing
+- App defaults key: present, length 16, placeholder-looking, rejected by OpenAI
+
+Do not mark this mission complete until a valid key is available and synthetic provider probes pass.
+
+## Required Next Action
+
+Get explicit user approval to create/install a valid OpenAI API key through the OpenAI Platform connector, or have the user provide a valid `OPENAI_API_KEY` in the environment. Then rerun synthetic provider probes for at least:
+
+```bash
+tools/realtime-foundation/realtime-foundation probe --mode transcription
+tools/realtime-foundation/realtime-foundation probe --mode translation
+tools/realtime-foundation/realtime-foundation probe --mode agent
+```
+
+If audio fixtures are used, they must be generated/non-private and the probe must include `--i-understand-audio-is-sent-to-openai`.
