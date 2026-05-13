@@ -347,11 +347,14 @@ Required smoke cases:
 Use generated or non-private audio only:
 
 ```bash
+tools/realtime-foundation/generate_synthetic_probe_audio.sh
 tools/realtime-foundation/realtime-foundation probe \
   --mode translation \
-  --audio /tmp/mtp_realtime_translate_en_to_zh.wav \
+  --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_en_to_zh_long.wav \
   --target zh \
+  --max-audio-seconds 12 \
   --i-understand-audio-is-sent-to-openai \
+  --show-text \
   --timeout 30
 ```
 

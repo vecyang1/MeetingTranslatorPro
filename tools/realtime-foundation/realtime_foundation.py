@@ -256,6 +256,7 @@ def websocket_audio_probe(
     target: str,
     timeout: float,
     show_text: bool,
+    max_audio_seconds: float,
 ) -> int:
     try:
         import websocket
@@ -263,7 +264,7 @@ def websocket_audio_probe(
         print("audio probe needs the optional websocket-client Python package")
         return 2
 
-    pcm = load_wav_pcm16(audio_path)
+    pcm = load_wav_pcm16(audio_path, max_seconds=max_audio_seconds)
     if not pcm:
         print(f"{audio_path}: no PCM audio loaded")
         return 2
@@ -285,24 +286,34 @@ def websocket_audio_probe(
         print("certifi not available; using platform default CA store for websocket probe")
 
     ws = websocket.WebSocket(sslopt=ssl_options)
+    ws.settimeout(min(timeout, 10.0))
+    try:
+        ws.connect(
+            url,
+            header=[f"Authorization: Bearer {key}", "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe"],
+        )
+    except Exception as exc:
+        print(f"{mode} audio probe connect failed: {exc}")
+        return 1
     ws.settimeout(min(timeout, 2.0))
-    ws.connect(
-        url,
-        header=[f"Authorization: Bearer {key}", "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe"],
-    )
 
     try:
         if mode == "translation":
             caption_url = "wss://api.openai.com/v1/realtime?intent=transcription"
             caption_ws = websocket.WebSocket(sslopt=ssl_options)
+            caption_ws.settimeout(min(timeout, 10.0))
+            try:
+                caption_ws.connect(
+                    caption_url,
+                    header=[
+                        f"Authorization: Bearer {key}",
+                        "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe",
+                    ],
+                )
+            except Exception as exc:
+                print(f"{mode} source caption probe connect failed: {exc}")
+                return 1
             caption_ws.settimeout(min(timeout, 2.0))
-            caption_ws.connect(
-                caption_url,
-                header=[
-                    f"Authorization: Bearer {key}",
-                    "OpenAI-Safety-Identifier: meeting-translator-pro-local-probe",
-                ],
-            )
             try:
                 caption_ws.send(
                     json.dumps(
@@ -571,7 +582,18 @@ def command_probe(args: argparse.Namespace) -> int:
     if not args.i_understand_audio_is_sent_to_openai:
         print("Refusing audio probe without --i-understand-audio-is-sent-to-openai. Use only non-private fixtures.")
         return 2
-    return websocket_audio_probe(mode, key, audio_path, args.target, args.timeout, args.show_text)
+    if args.max_audio_seconds <= 0:
+        print("--max-audio-seconds must be greater than zero")
+        return 2
+    return websocket_audio_probe(
+        mode,
+        key,
+        audio_path,
+        args.target,
+        args.timeout,
+        args.show_text,
+        args.max_audio_seconds,
+    )
 
 
 SWIFT_SERVICE_TEMPLATE = """// OpenAI Realtime service scaffold.
@@ -637,11 +659,17 @@ def build_parser() -> argparse.ArgumentParser:
 
     probe = sub.add_parser("probe", help="Probe model access or an explicit WAV audio file")
     probe.add_argument("--mode", choices=sorted(MODEL_ROUTES), default="transcription")
-    probe.add_argument("--audio", help="Optional WAV file. Sends up to 4 seconds, so use non-private fixtures only.")
+    probe.add_argument("--audio", help="Optional WAV file. Use non-private fixtures only.")
     probe.add_argument("--i-understand-audio-is-sent-to-openai", action="store_true")
     probe.add_argument("--show-text", action="store_true", help="Print transcript snippets from the probe fixture")
     probe.add_argument("--target", default="ja", help="Translation output language code for translation probes")
     probe.add_argument("--timeout", type=float, default=20.0)
+    probe.add_argument(
+        "--max-audio-seconds",
+        type=float,
+        default=4.0,
+        help="Maximum seconds of WAV audio to send; increase for long-utterance synthetic probes.",
+    )
     probe.set_defaults(func=command_probe)
 
     scaffold = sub.add_parser("scaffold", help="Print or write starter code")

@@ -8,7 +8,7 @@ Do not claim realtime completion without fresh evidence.
 - `tools/realtime-foundation/realtime-foundation probe --mode translation`
 - `tools/realtime-foundation/realtime-foundation probe --mode agent`
 - `tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --pinned-source-language --interpreter-session`
-- Audio probes require `--i-understand-audio-is-sent-to-openai`; use generated or non-private fixtures only.
+- Audio probes require `--i-understand-audio-is-sent-to-openai`; use generated or non-private fixtures only. Generate local macOS fixtures with `tools/realtime-foundation/generate_synthetic_probe_audio.sh`, then use `probe --max-audio-seconds 8` or higher for long-utterance translation checks.
 - Diarization probes require generated/non-private multi-speaker audio and a valid key with `gpt-4o-transcribe-diarize` access.
 - `./build_app.sh`
 - `/Applications/MeetingTranslator.app` exists and launches

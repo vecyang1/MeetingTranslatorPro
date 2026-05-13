@@ -610,7 +610,7 @@ Verification helpers:
 - Language detector smoke: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift tools/realtime-foundation/tests/language_detector_smoke.swift -o /tmp/language_detector_smoke && /tmp/language_detector_smoke`
 - Synthetic app E2E: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/*.swift tools/realtime-foundation/tests/realtime_app_e2e.swift -o /tmp/realtime_app_e2e && /tmp/realtime_app_e2e`
 - Realtime foundation CLI recommendation smoke: `tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --pinned-source-language --interpreter-session`
-- Provider probes must use generated/non-private fixtures and `--i-understand-audio-is-sent-to-openai`; never use private meeting audio.
+- Provider probes must use generated/non-private fixtures and `--i-understand-audio-is-sent-to-openai`; never use private meeting audio. `tools/realtime-foundation/generate_synthetic_probe_audio.sh` creates macOS `say` fixtures under `/tmp/mtp_realtime_probe_audio`, and `probe --max-audio-seconds` can be raised for long-utterance translation checks.
 
 ---
 
