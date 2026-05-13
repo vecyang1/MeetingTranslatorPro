@@ -47,6 +47,28 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
     private var continuousChunkingEnabled = false
     private var minimumChunkDuration: TimeInterval = 1.0
 
+    static var currentProcessAudioExclusionSupported: Bool {
+        if #available(macOS 13.0, *) {
+            return true
+        }
+        return false
+    }
+
+    static func makeStreamConfiguration(excludeCurrentProcessAudio: Bool) -> SCStreamConfiguration {
+        let config = SCStreamConfiguration()
+        config.capturesAudio = true
+        config.sampleRate = 16_000
+        config.channelCount = 1
+        config.width = 2
+        config.height = 2
+        config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
+        config.showsCursor = false
+        if #available(macOS 13.0, *) {
+            config.excludesCurrentProcessAudio = excludeCurrentProcessAudio
+        }
+        return config
+    }
+
     func configureChunking(chunkDuration: TimeInterval, continuous: Bool) {
         bufferLock.lock()
         self.chunkDuration = max(0.2, chunkDuration)
@@ -116,14 +138,7 @@ final class SystemAudioManager: NSObject, ObservableObject, @unchecked Sendable,
 
         let filter = SCContentFilter(display: display, excludingApplications: [], exceptingWindows: [])
 
-        let config = SCStreamConfiguration()
-        config.capturesAudio = true
-        config.sampleRate = Int(targetSampleRate)
-        config.channelCount = 1
-        config.width = 2
-        config.height = 2
-        config.minimumFrameInterval = CMTime(value: 1, timescale: 1)
-        config.showsCursor = false
+        let config = Self.makeStreamConfiguration(excludeCurrentProcessAudio: true)
 
         let newStream = SCStream(filter: filter, configuration: config, delegate: self)
         try newStream.addStreamOutput(self, type: .audio, sampleHandlerQueue: .global(qos: .userInitiated))

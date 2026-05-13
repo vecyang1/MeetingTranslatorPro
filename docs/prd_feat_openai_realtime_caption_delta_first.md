@@ -268,7 +268,7 @@ Settings must reinforce the runtime model split:
 - Legacy Whisper + GPT is a fallback path: show fast draft and stitch-pass intervals only when `OpenAI Whisper + GPT` is selected.
 - Gemini Flash may show its fast/quality pipeline only when selected.
 - Gemini Live should be positioned as an alternate/fallback, not as "best for live meetings."
-- Translated audio playback remains off/disabled until feedback behavior is proven.
+- Translated audio playback remains off by default and is governed by the M8 safe-preview feedback gates in `docs/prd_feat_realtime_translated_audio_playback.md`.
 
 The old fast/stitch pipeline diagram must not appear under `OpenAI Realtime (Recommended)`, because it makes users believe legacy Whisper/GPT intervals affect `gpt-realtime-whisper` captioning.
 

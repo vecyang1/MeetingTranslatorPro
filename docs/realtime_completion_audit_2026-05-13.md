@@ -1,5 +1,9 @@
 # Realtime Completion Audit - 2026-05-13
 
+## Supersession Notice
+
+This audit records the earlier M7 same-time translated-subtitle completion pass. Its "translated audio playback stays disabled" evidence was correct for M7. M8 safe-preview playback is tracked separately in `docs/prd_feat_realtime_translated_audio_playback.md` and the current `docs/API.md` translated-audio contract.
+
 ## Objective
 
 Implement the remaining Meeting Translator Pro realtime mission end to end from the committed PRDs, using `gpt-realtime-translate` for same-time interpretation, preserving existing behavior, verifying with tests/probes/build/runtime inspection, updating docs/skills, and committing meaningful milestones.

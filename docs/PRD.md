@@ -163,14 +163,14 @@ Realtime work is now split into explicit feature PRDs so future agents do not bl
 |---|---|---|
 | `docs/prd_feat_openai_realtime_caption_delta_first.md` | Implemented/hardening | `gpt-realtime-whisper` source captions while speech is still arriving. |
 | `docs/prd_feat_openai_realtime_translate_interpreter.md` | Implemented and provider-verified | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
-| `docs/prd_feat_realtime_translated_audio_playback.md` | Goal-ready, not implemented | M8 safe translated audio playback from `gpt-realtime-translate` output audio, gated by feedback-safety proof. |
+| `docs/prd_feat_realtime_translated_audio_playback.md` | Implemented and verified | Safe preview translated audio playback from `gpt-realtime-translate` output audio, gated by explicit opt-in, interpreter gates, ScreenCaptureKit exclusion, and headphone/safe-output confirmation. |
 | `docs/prd_feat_realtime_settings_runtime_clarity.md` | Implemented locally | Settings panel reflects actual Realtime runtime controls and hides legacy Whisper + GPT timing under Realtime. |
 | `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Implemented as off-by-default delayed sidecar foundation | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
 | `docs/prd_feat_openai_realtime_translation_next_stage.md` | Historical/superseded | Retained for earlier probe notes only; do not use as completion proof. |
 
 Same-time interpretation decision: `gpt-realtime-translate` is the interpreter model. `gpt-realtime-whisper` may run beside it only to provide original-language captions and export/audit text. `gpt-realtime-2` remains reserved for future voice-agent or meeting-assistant workflows.
 
-Translated audio playback decision: M7 text interpretation is complete with playback disabled. M8 is now specified separately in `docs/prd_feat_realtime_translated_audio_playback.md`; it may enable playback only after explicit user opt-in, Realtime interpreter gates, ScreenCaptureKit current-process audio exclusion, microphone/output safety checks, and synthetic feedback-loop verification all pass.
+Translated audio playback decision: M8 safe preview playback uses only `gpt-realtime-translate` output audio from `/v1/realtime/translations`. Playback remains off by default and cannot be enabled by the old placeholder preference key. Runtime passes `translatedAudioPlaybackEnabled: true` only after explicit user opt-in, Realtime interpreter gates, ScreenCaptureKit current-process audio exclusion support, and microphone/output safety confirmation all pass. Room-speaker safety is not claimed; Settings tells users to use headphones or a confirmed safe output.
 
 ---
 
@@ -278,7 +278,10 @@ All user settings are stored in `UserDefaults` under the `com.meetingtranslator.
 | `com.meetingtranslator.realtime.captionlatency` | String | "Balanced" | OpenAI Realtime caption latency preset |
 | `com.meetingtranslator.realtime.reasoningeffort` | String | "low" | `gpt-realtime-2` effort setting; kept low for live caption latency |
 | `com.meetingtranslator.realtime.interpretersessionenabled` | Bool | false | Explicit M7 live interpreter session gate for `gpt-realtime-translate` |
-| `com.meetingtranslator.realtime.translatedaudioplayback` | Bool | false | Reserved translated-audio playback toggle |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.enabled` | Bool | false | Explicit safe-preview translated-audio playback opt-in; old placeholder key is ignored |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.muted` | Bool | false | Local translated-audio mute state |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.volume` | Double | 0.65 | Local translated-audio playback volume |
+| `com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutput` | Bool | false | Headphones/safe-output confirmation used to block microphone feedback |
 | `com.meetingtranslator.realtime.automaticfallback` | Bool | true | Switch to legacy OpenAI after bounded transient Realtime retry is exhausted |
 | `com.meetingtranslator.totalcost` | Double | 0.0 | All-time API cost |
 

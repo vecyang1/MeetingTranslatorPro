@@ -4,6 +4,12 @@
 
 ### Added
 
+- Bumped the installed app version to `1.1.0` build `2` for the M8 translated-audio playback release.
+- Implemented M8 safe-preview translated audio playback from `gpt-realtime-translate` output audio. Playback is off by default, ignores the old placeholder preference, and can enable only after M7 interpreter gates, explicit opt-in, ScreenCaptureKit current-process exclusion support, and headphones/safe-output confirmation all pass.
+- Added `RealtimeTranslatedAudioPlayer`, a bounded mono PCM16 playback manager with mute, volume, stop/reconnect clearing, queue-drop accounting, and a no-engine mode for deterministic Swift smoke tests.
+- Added Settings translated-audio controls under `Live Interpretation`: Safe preview playback, safe-output confirmation, mute, volume, safety status, disabled reason, and route copy naming `gpt-realtime-translate` output audio.
+- Added provider probe support for `--capture-output-audio`, which writes translated output audio from synthetic `session.output_audio.delta` events to a WAV file and reports first audio/transcript timing, format, sample rate, and captured byte count.
+- Added ScreenCaptureKit exclusion smokes: a configuration test for `SCStreamConfiguration.excludesCurrentProcessAudio` and an installed-app current-process runtime probe that captures external synthetic audio while proving the app's own translated playback is not recaptured as system audio.
 - Implemented the local M7 live interpreter route with `gpt-realtime-translate` plus a `gpt-realtime-whisper` source-caption sidecar, gated by visible translations, exactly one pinned source language, non-same source/target languages, and the explicit interpreter-session toggle.
 - Added off-by-default delayed speaker-recognition metadata and matching support: finalized system-audio rows can receive later diarization labels without rewriting transcript text, while ambiguous matches are ignored.
 - Added Settings `Realtime Captions`, `Live Interpretation`, and `Speaker Recognition` sections so realtime caption controls, interpreter prerequisites, and delayed-label privacy/cost disclosures are separate.
@@ -18,7 +24,7 @@
 
 - Marked the older realtime translation PRD as historical/superseded so it is not mistaken for proof that the installed app has shipped user-facing same-time interpretation.
 - Updated `docs/PRD.md`, `docs/API.md`, and the OpenAI realtime foundation skill to point future agents at the new PRD split and the `gpt-realtime-translate` interpreter route.
-- Updated the realtime docs and skill references so "Translated audio playback (coming later)" now points to the M8 playback PRD instead of an undefined future task.
+- Updated the realtime docs and skill references so the old "Translated audio playback (coming later)" copy is replaced by the implemented M8 safe-preview contract.
 - Updated the realtime foundation CLI so `recommend --task interpreter` requires `--pinned-source-language` and `--interpreter-session`; translated audio remains a deprecated alias and is no longer the conceptual gate.
 
 ### Fixed
@@ -28,13 +34,16 @@
 - Fixed translation-mode status presentation so a later sidecar caption socket cannot downgrade the visible runtime state from translation active to captions active.
 - Fixed audio provider probe connection handling so TLS/WebSocket setup uses a real connect timeout and invalid keys report a clean session-update error instead of a traceback or premature timeout.
 - Fixed the provider probe harness so it can run on the login-shell Python without optional `websocket-client` or `audioop` dependencies.
+- Fixed translated-audio event handling so `session.output_audio.delta` and `session.output_audio.done` never create transcript rows, unsupported output formats disable playback instead of guessing, and caption-only mode never starts hidden translation or playback spend.
 
 ### Verified
 
+- Local M8 smokes currently pass for the playback gate truth table, old placeholder state blocking, audio event parsing, unsupported format blocking, playback queue/mute/stop behavior, app E2E playback suppression/enabled paths, Settings copy, export metadata, ScreenCaptureKit exclusion config, and installed-app current-process exclusion runtime proof.
 - Local smokes currently pass for realtime core, synthetic realtime app E2E, Settings copy, Settings input-filter placement, transcript follow behavior, language detection, app-logo UI, app-icon visual checks, and `./build_app.sh`.
-- Installed `/Applications/MeetingTranslator.app` launches with bundle id `com.meetingtranslator.app`, version `1.0.0`, and the expected Apple Development signature; installed binary strings include the new realtime Settings sections.
-- GitNexus `detect_changes` was reviewed for the full diff and reports critical risk in the expected realtime/AppState/routing/reducer/cost flows.
-- Full realtime mission verification passes with generated synthetic audio: `gpt-realtime-whisper` source transcript deltas, `gpt-realtime-translate` EN->ZH, `gpt-realtime-translate` ZH->EN, `gpt-realtime-translate` code-switch, and `gpt-realtime-2` agent text output.
+- Installed `/Applications/MeetingTranslator.app` launches with bundle id `com.meetingtranslator.app`, version `1.1.0` build `2`, and the expected Apple Development signature; installed binary strings include the new realtime Settings sections.
+- Installed app feedback proof passed with `quiet_max_rms=0.19784`, external synthetic control `external_max_rms=0.70236`, and app-local current-process playback `current_process_max_rms=0.23104`, proving the app playback was not recaptured as system audio in the verified run.
+- GitNexus `detect-changes --repo MeetingTranslatorPro --scope all` was reviewed for the full diff and reported 27 changed files, 156 symbols, 70 affected processes, and critical risk in the expected realtime/AppState/routing/reducer/cost flows.
+- Full realtime mission verification passes with generated synthetic audio: `gpt-realtime-whisper` source transcript deltas, `gpt-realtime-translate` EN->ZH captured 38,400 bytes of PCM16 24 kHz output audio, `gpt-realtime-translate` ZH->EN captured 19,200 bytes, `gpt-realtime-translate` code-switch captured 38,400 bytes, and `gpt-realtime-2` agent text output passed.
 
 ## 2026-05-12
 

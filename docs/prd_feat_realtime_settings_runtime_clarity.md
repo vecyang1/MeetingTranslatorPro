@@ -2,8 +2,8 @@
 
 **Version:** 1.0
 **Date:** 2026-05-13
-**Status:** Goal-ready
-**Stage:** M7 support
+**Status:** Implemented locally; updated for M8 safe playback controls
+**Stage:** M7 support plus M8 safe-preview playback settings
 **Primary goal:** make Settings reflect the actual Realtime runtime without misleading Whisper-era controls
 **Depends on:** `docs/prd_feat_openai_realtime_translate_interpreter.md`
 
@@ -13,13 +13,14 @@
 
 Settings should be organized around user intent, not model plumbing.
 
-For `OpenAI Realtime (Recommended)`, the panel should answer five questions:
+For `OpenAI Realtime (Recommended)`, the panel should answer six questions:
 
 1. What audio is captured?
 2. How sensitive is the shared input filter?
 3. What live caption latency do I want?
 4. Am I running live interpretation, and are all prerequisites met?
-5. Should the timeline follow new captions?
+5. Is translated audio available as a safe-preview output?
+6. Should the timeline follow new captions?
 
 Legacy Whisper + GPT timing controls must live only under the legacy fallback engine. They do not configure `gpt-realtime-whisper` or `gpt-realtime-translate`.
 
@@ -29,10 +30,10 @@ Legacy Whisper + GPT timing controls must live only under the legacy fallback en
 
 The current Settings panel has improved, but it still risks confusing users because:
 
-- `Engine Controls` includes realtime controls, translation gates, and disabled translated audio copy in one block;
+- `Engine Controls` had included realtime controls, translation gates, and translated audio copy in one block;
 - the app has both "Show translations" and "Live translation session" concepts;
 - Whisper-era terms can make users think Realtime is still using the old fast/stitch pipeline;
-- translated audio playback is visible but not truly ready;
+- translated audio playback must not look usable until the safe-preview implementation and feedback gates exist;
 - user-visible status should explain why live interpretation is waiting.
 
 This PRD makes Settings a reliable control surface for the M7 interpreter route.
@@ -62,7 +63,7 @@ Fresh installs should default to caption-first Realtime, translations visible, i
 ## 4. Non-Goals
 
 - Do not redesign the whole app window.
-- Do not add translated audio playback.
+- Do not add room-speaker translated audio playback or any playback path outside the M8 safety gates.
 - Do not expose raw model endpoint URLs to normal users.
 - Do not remove fallback engines.
 - Do not move shared audio input filtering into an engine-specific panel.
@@ -148,7 +149,7 @@ Show when selected engine is Realtime:
 - source-language prerequisite status;
 - `Live interpreter session` toggle;
 - detail line: "Uses `gpt-realtime-translate`; source captions use `gpt-realtime-whisper` for audit.";
-- disabled translated audio playback row with "coming later" copy until `docs/prd_feat_realtime_translated_audio_playback.md` ships safe playback.
+- translated audio subsection from `docs/prd_feat_realtime_translated_audio_playback.md`: off-by-default Safe preview toggle, mute, volume, safety status, disabled reason, safe-output confirmation, and route detail that names `gpt-realtime-translate` output audio.
 
 The "Live interpreter session" toggle should be enabled only when enough prerequisites exist to make the choice meaningful. If the UI allows toggling early, status must still prevent runtime spend until gates are true.
 
@@ -177,8 +178,8 @@ Use these exact concepts:
 - "Live interpretation" for same-time translation.
 - "Source captions" for original-language text.
 - "Fallback Whisper + GPT" for legacy non-realtime path.
-- "Translated audio playback" remains disabled.
-- Future enabled wording must follow `docs/prd_feat_realtime_translated_audio_playback.md` and show safety status, mute, and volume controls only after feedback behavior is proven.
+- "Translated audio playback" is available only as explicit safe preview.
+- Enabled wording must follow `docs/prd_feat_realtime_translated_audio_playback.md`, show safety status, mute, and volume controls, and never claim room-speaker safety.
 
 Avoid these misleading phrases in the Realtime section:
 
@@ -235,7 +236,7 @@ Required smoke tests:
 - [x] Live interpretation clearly names `gpt-realtime-translate` as the interpreter model.
 - [x] Whisper is presented only as source-caption sidecar in interpreter mode.
 - [x] All interpreter prerequisites are visible and testable.
-- [x] Translated audio playback remains disabled and honest.
+- [x] Translated audio playback is off by default, safe-preview only, and honest about headphones/safe-output requirements.
 - [x] Display follow behavior is separate and does not restart sessions.
 - [x] Smoke tests and installed-app Settings inspection pass.
 
@@ -246,3 +247,4 @@ Required smoke tests:
 | Date | Version | Change |
 |---|---:|---|
 | 2026-05-13 | 1.0 | Goal-ready Settings PRD aligned to Realtime Translate interpreter route. |
+| 2026-05-13 | 1.1 | Updated Settings contract for M8 safe-preview translated audio controls after implementation replaced the old "coming later" row. |

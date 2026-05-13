@@ -16,6 +16,7 @@ echo "Project: $PROJECT_DIR"
 # Clean previous build
 rm -rf "$BUILD_DIR"
 mkdir -p "$BUILD_DIR"
+mkdir -p /tmp/mtp-swift-module-cache
 
 # Get SDK path
 SDK=$(xcrun --sdk macosx --show-sdk-path)
@@ -24,6 +25,7 @@ echo "SDK: $SDK"
 # Compile
 echo "Compiling Swift sources..."
 swiftc \
+  -module-cache-path /tmp/mtp-swift-module-cache \
   -sdk "$SDK" \
   -target arm64-apple-macosx14.0 \
   -parse-as-library \
@@ -46,6 +48,7 @@ swiftc \
   Sources/MeetingTranslator/Services/GeminiFlashService.swift \
   Sources/MeetingTranslator/Services/GeminiLiveService.swift \
   Sources/MeetingTranslator/Services/CostTracker.swift \
+  Sources/MeetingTranslator/Services/SystemAudioCurrentProcessExclusionProbe.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModelRouter.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift \
@@ -53,6 +56,7 @@ swiftc \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeConnectionRecoveryPolicy.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/AudioResampler.swift \
+  Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift \
   Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift \

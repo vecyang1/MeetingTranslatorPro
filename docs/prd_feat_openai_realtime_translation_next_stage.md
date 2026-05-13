@@ -21,7 +21,7 @@ Current product decision:
 - `gpt-realtime-translate` is the same-time interpretation model.
 - `gpt-realtime-whisper` is allowed only as a source-caption audit sidecar in interpreter mode.
 - Installed-app E2E must prove translated subtitles before this feature is marked complete.
-- Translated audio playback stays disabled until `docs/prd_feat_realtime_translated_audio_playback.md` ships a feedback-safe implementation.
+- Translated audio playback is now governed by `docs/prd_feat_realtime_translated_audio_playback.md`: off by default, safe-preview only, and never required for translated subtitles.
 
 ---
 
@@ -61,7 +61,7 @@ The app should render source transcript and translated transcript together when 
 
 ### G3. Optional Translated Audio
 
-Translated audio playback is optional and off by default. If enabled, it must not create a feedback loop into microphone/system audio.
+Translated audio playback is optional and off by default. If enabled through the later M8 safe-preview path, it must not create a feedback loop into microphone/system audio.
 
 ### G4. Strict Cost Gates
 
@@ -159,7 +159,7 @@ showTranslations
 && realtimeInterpreterSessionEnabled
 ```
 
-Translated audio playback is a separate output gate and remains off by default. Text subtitles can use `gpt-realtime-translate` without playing returned audio; audio deltas must be ignored unless playback is explicitly enabled and feedback behavior is controlled.
+Translated audio playback is a separate output gate and remains off by default. Text subtitles can use `gpt-realtime-translate` without playing returned audio; audio deltas must be ignored unless M8 playback is explicitly enabled and feedback behavior is controlled.
 
 ### FR-M7-002: Translation Session Contract
 
@@ -325,7 +325,7 @@ Evidence as of 2026-05-12:
 - Chinese -> English provider probe passed with generated synthetic audio and explicit OpenAI audio consent flag; the paired route saw source caption text from `gpt-realtime-whisper` and translated output text from `gpt-realtime-translate`.
 - Synthetic app E2E verifies source caption deltas, output transcript deltas, source final, translated final, and one `(source, itemID)` row attachment for English -> Chinese and Chinese -> English.
 - Gate-off tests verify hidden translations, same-language, and interpreter-session-off routes do not start `gpt-realtime-translate`.
-- Translated audio playback remains off by default; the service suppresses `session.output_audio.delta` unless `translatedAudioPlaybackEnabled` is true.
+- Translated audio playback remains off by default; the service suppresses `session.output_audio.delta` unless the M8 gate passes `translatedAudioPlaybackEnabled == true`.
 
 ---
 
@@ -366,3 +366,4 @@ Stop and report if:
 | 2026-05-12 | 1.0 | Initial M7 PRD: realtime translation after delta-first caption streaming. |
 | 2026-05-12 | 1.1 | Recorded M7 implementation evidence: explicit interpreter-session gates, transcript delta/final attachment, separated Translate pricing, audio playback suppression, and EN<->ZH synthetic probes. |
 | 2026-05-12 | 1.2 | Updated M7 contract after provider probes: use `gpt-realtime-translate` for translated output plus paired `gpt-realtime-whisper` source-caption sidecar; record `$3.06/hour/source` combined route and output-first row attachment. |
+| 2026-05-13 | 1.3 | Marked translated audio as governed by the newer M8 safe-preview playback PRD while preserving this file as historical M7 context. |

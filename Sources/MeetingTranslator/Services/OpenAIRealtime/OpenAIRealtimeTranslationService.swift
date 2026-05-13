@@ -62,9 +62,30 @@ final class OpenAIRealtimeTranslationService: OpenAIRealtimeWebSocketService, @u
             if translatedAudioPlaybackEnabled,
                let delta = event["delta"] as? String,
                let data = Data(base64Encoded: delta) {
-                onEvent?(.translatedAudioChunk(source: source, itemID: itemID, data: data, timestamp: Date()))
+                let format = event["format"] as? String
+                let sampleRate = event["sample_rate"] as? Double
+                    ?? (event["sample_rate"] as? Int).map(Double.init)
+                let channels = event["channels"] as? Int
+                if let format, format.lowercased() != "pcm16" {
+                    onEvent?(.translatedAudioFormatUnsupported(source: source, itemID: itemID, format: format, timestamp: Date()))
+                    return
+                }
+                onEvent?(
+                    .translatedAudioChunk(
+                        source: source,
+                        itemID: itemID,
+                        data: data,
+                        format: format,
+                        sampleRate: sampleRate,
+                        channels: channels,
+                        timestamp: Date()
+                    )
+                )
             }
         case "session.output_audio.done":
+            if translatedAudioPlaybackEnabled {
+                onEvent?(.translatedAudioDone(source: source, itemID: itemID, timestamp: Date()))
+            }
             rotateTurnIDIfFallbackID(itemID)
         case "error":
             let message = ((event["error"] as? [String: Any])?["message"] as? String) ?? "OpenAI Realtime translation error."

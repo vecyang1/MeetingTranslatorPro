@@ -70,8 +70,8 @@ $OUT_DIR
 Suggested provider probes after installing a valid OPENAI_API_KEY:
 
 tools/realtime-foundation/realtime-foundation probe --mode transcription --audio "$OUT_DIR/mtp_realtime_translate_en_to_zh_long.wav" --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_en_to_zh_long.wav" --target zh --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_zh_to_en.wav" --target en --max-audio-seconds 8 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
-tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_code_switch.wav" --target zh --max-audio-seconds 10 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
+tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_en_to_zh_long.wav" --target zh --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --capture-output-audio "$OUT_DIR/translated_audio_en_to_zh.wav" --timeout 30
+tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_zh_to_en.wav" --target en --max-audio-seconds 8 --i-understand-audio-is-sent-to-openai --show-text --capture-output-audio "$OUT_DIR/translated_audio_zh_to_en.wav" --timeout 30
+tools/realtime-foundation/realtime-foundation probe --mode translation --audio "$OUT_DIR/mtp_realtime_translate_code_switch.wav" --target zh --max-audio-seconds 10 --i-understand-audio-is-sent-to-openai --show-text --capture-output-audio "$OUT_DIR/translated_audio_code_switch.wav" --timeout 30
 tools/realtime-foundation/realtime-foundation probe --mode agent --audio "$OUT_DIR/mtp_realtime_translate_en_to_zh_long.wav" --max-audio-seconds 8 --i-understand-audio-is-sent-to-openai --show-text --timeout 30
 EOF

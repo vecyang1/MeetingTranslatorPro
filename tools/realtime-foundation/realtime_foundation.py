@@ -212,6 +212,15 @@ def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.
     return bytes(output)
 
 
+def write_pcm16_wav(path: Path, pcm: bytes, sample_rate: int = 24000) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with wave.open(str(path), "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(sample_rate)
+        wav.writeframes(pcm)
+
+
 def decode_wav_samples(pcm: bytes, width: int, channels: int) -> list[int]:
     if width not in {1, 2, 3, 4}:
         raise ValueError(f"unsupported WAV sample width: {width}")
@@ -488,6 +497,7 @@ def websocket_audio_probe(
     timeout: float,
     show_text: bool,
     max_audio_seconds: float,
+    capture_output_audio: Path | None = None,
 ) -> int:
     pcm = load_wav_pcm16(audio_path, max_seconds=max_audio_seconds)
     if not pcm:
@@ -657,6 +667,12 @@ def websocket_audio_probe(
         translation_input_text = ""
         translation_output_text = ""
         translation_audio_seen = False
+        translation_audio_chunks: list[bytes] = []
+        translation_audio_sample_rate = 24000
+        translation_audio_format = "pcm16"
+        first_audio_delta_at: float | None = None
+        first_translated_text_at: float | None = None
+        probe_started_at = time.time()
         agent_final_events = {
             "response.output_text.done",
             "response.text.done",
@@ -694,7 +710,17 @@ def websocket_audio_probe(
                     if isinstance(text, str):
                         translation_input_text += text
                 if not event:
-                    if translation_input_text.strip() and translation_output_text.strip():
+                    text_ready = bool(translation_input_text.strip() and translation_output_text.strip())
+                    audio_ready = bool(translation_audio_chunks) or capture_output_audio is None
+                    if text_ready and audio_ready:
+                        if capture_output_audio is not None and translation_audio_chunks:
+                            captured_pcm = b"".join(translation_audio_chunks)
+                            write_pcm16_wav(capture_output_audio, captured_pcm, translation_audio_sample_rate)
+                            print(
+                                "translation audio probe captured output audio: "
+                                f"path={capture_output_audio} bytes={len(captured_pcm)} "
+                                f"format={translation_audio_format} sample_rate={translation_audio_sample_rate}"
+                            )
                         if show_text:
                             print(
                                 "translation audio probe transcript events: "
@@ -703,6 +729,10 @@ def websocket_audio_probe(
                             )
                         else:
                             print("translation audio probe transcript events")
+                        if first_audio_delta_at is not None:
+                            print(f"translation audio probe first audio delta: {first_audio_delta_at:.2f}s")
+                        if first_translated_text_at is not None:
+                            print(f"translation audio probe first translated transcript delta: {first_translated_text_at:.2f}s")
                         return 0
                     continue
             event_type = event.get("type", "")
@@ -711,13 +741,39 @@ def websocket_audio_probe(
                 if mode == "translation":
                     if event_type == "session.output_audio.delta":
                         translation_audio_seen = True
+                        if first_audio_delta_at is None:
+                            first_audio_delta_at = time.time() - probe_started_at
+                        event_sample_rate = event.get("sample_rate")
+                        if isinstance(event_sample_rate, int):
+                            translation_audio_sample_rate = event_sample_rate
+                        event_format = event.get("format")
+                        if isinstance(event_format, str) and event_format.strip():
+                            translation_audio_format = event_format.strip()
+                        audio_delta = event.get("delta")
+                        if isinstance(audio_delta, str):
+                            try:
+                                translation_audio_chunks.append(base64.b64decode(audio_delta))
+                            except Exception:
+                                pass
                         continue
                     text = event.get("delta") or event.get("transcript") or event.get("text") or ""
                     if event_type.startswith("session.input_transcript.") and isinstance(text, str):
                         translation_input_text += text
                     elif event_type.startswith("session.output_transcript.") and isinstance(text, str):
+                        if text and first_translated_text_at is None:
+                            first_translated_text_at = time.time() - probe_started_at
                         translation_output_text += text
-                    if translation_input_text.strip() and translation_output_text.strip():
+                    text_ready = bool(translation_input_text.strip() and translation_output_text.strip())
+                    audio_ready = bool(translation_audio_chunks) or capture_output_audio is None
+                    if text_ready and audio_ready:
+                        if capture_output_audio is not None and translation_audio_chunks:
+                            captured_pcm = b"".join(translation_audio_chunks)
+                            write_pcm16_wav(capture_output_audio, captured_pcm, translation_audio_sample_rate)
+                            print(
+                                "translation audio probe captured output audio: "
+                                f"path={capture_output_audio} bytes={len(captured_pcm)} "
+                                f"format={translation_audio_format} sample_rate={translation_audio_sample_rate}"
+                            )
                         if show_text:
                             print(
                                 "translation audio probe transcript events: "
@@ -726,6 +782,10 @@ def websocket_audio_probe(
                             )
                         else:
                             print("translation audio probe transcript events")
+                        if first_audio_delta_at is not None:
+                            print(f"translation audio probe first audio delta: {first_audio_delta_at:.2f}s")
+                        if first_translated_text_at is not None:
+                            print(f"translation audio probe first translated transcript delta: {first_translated_text_at:.2f}s")
                         return 0
                     continue
                 if mode == "agent":
@@ -754,6 +814,10 @@ def websocket_audio_probe(
             return 1
         if mode == "translation":
             audio_note = " and output audio" if translation_audio_seen else ""
+            if capture_output_audio is not None and translation_audio_chunks:
+                captured_pcm = b"".join(translation_audio_chunks)
+                write_pcm16_wav(capture_output_audio, captured_pcm, translation_audio_sample_rate)
+                audio_note += f" (captured {len(captured_pcm)} bytes to {capture_output_audio})"
             print(
                 f"{mode} audio probe timed out before both transcript directions; "
                 f"saw input={bool(translation_input_text.strip())}, "
@@ -818,6 +882,7 @@ def command_probe(args: argparse.Namespace) -> int:
         args.timeout,
         args.show_text,
         args.max_audio_seconds,
+        Path(args.capture_output_audio).expanduser() if args.capture_output_audio else None,
     )
 
 
@@ -894,6 +959,10 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=4.0,
         help="Maximum seconds of WAV audio to send; increase for long-utterance synthetic probes.",
+    )
+    probe.add_argument(
+        "--capture-output-audio",
+        help="For translation probes, write captured gpt-realtime-translate output PCM16 audio to this WAV file.",
     )
     probe.set_defaults(func=command_probe)
 

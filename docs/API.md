@@ -548,7 +548,7 @@ Settings UI contract:
 - The Settings translation toggle is bound through `AppState.setShowTranslations(_:)` so active realtime routing can restart safely if needed.
 - The Settings live-interpreter toggle is bound through `AppState.setRealtimeInterpreterSessionEnabled(_:)` so enabling or disabling `gpt-realtime-translate` reroutes the active Realtime session immediately instead of waiting for another full settings save.
 - `Follow latest captions` belongs under Settings `Display Behavior` and also appears as an icon button in the control bar for live reading. It is a UI display preference, not a Realtime model parameter.
-- Translated audio playback is intentionally displayed as coming later and is forced off at runtime until room-feedback behavior is proven.
+- Translated audio playback appears under `Live Interpretation` only after M8 implementation. It is off by default, uses the existing `gpt-realtime-translate` output audio route, and is disabled with an explicit reason until interpreter and safety gates are satisfied.
 - Speaker recognition is off by default. When enabled, Settings must disclose delayed labels, `gpt-4o-transcribe-diarize` cost/privacy implications, and that no audio is sent while the mode is Off.
 
 App-level realtime events:
@@ -558,7 +558,9 @@ partialTranscript(source, itemID, text, timestamp)
 finalTranscript(source, itemID, text, language, timestamp)
 partialTranslation(source, itemID, text, timestamp)
 finalTranslation(source, itemID, text, language, timestamp)
-translatedAudioChunk(source, itemID, data, timestamp)
+translatedAudioChunk(source, itemID, data, format, sampleRate, channels, timestamp)
+translatedAudioDone(source, itemID, timestamp)
+translatedAudioFormatUnsupported(source, itemID, format, timestamp)
 sessionStateChanged(source, state)
 usageUpdated(source, mode, audioDurationSeconds, inputTokens, outputTokens)
 recoverableError(source, message, action)
@@ -580,12 +582,15 @@ Translated audio playback M8 contract:
 
 - Source of truth: `docs/prd_feat_realtime_translated_audio_playback.md`.
 - Playback must use `gpt-realtime-translate` output audio from the existing `/v1/realtime/translations` session. Do not add `gpt-realtime-2`, legacy TTS, or another model for playback.
-- Runtime may pass `translatedAudioPlaybackEnabled: true` to `OpenAIRealtimeTranslationService` only when the M7 interpreter gate is true, a persisted M8 playback opt-in is true, and the translated-audio safety status is ready.
-- `session.output_audio.delta` is translated audio only. It must be decoded and routed to a dedicated playback manager; it must never create transcript rows.
-- `session.output_audio.done`, Stop, mute, route downgrade, fallback, and reconnect must drain or clear queued playback audio predictably.
-- `SystemAudioManager` must set `SCStreamConfiguration.excludesCurrentProcessAudio = true` when translated audio playback can be active, and tests must prove this remains configured. The local macOS SDK exposes this property on `SCStreamConfiguration` for macOS 13+.
+- Runtime may pass `translatedAudioPlaybackEnabled: true` to `OpenAIRealtimeTranslationService` only when `showTranslations`, exactly one pinned source language, non-same source/target language, `realtimeInterpreterSessionEnabled`, persisted M8 playback opt-in, and `TranslatedAudioSafetyStatus.ready` are all true.
+- Old placeholder persistence under `com.meetingtranslator.realtime.translatedaudioplayback` is ignored. M8 stores explicit opt-in/mute/volume/safe-output under `.m8.*` keys.
+- `session.output_audio.delta` is translated audio only. `OpenAIRealtimeTranslationService` parses optional `format`, `sample_rate`, and `channels`; unsupported non-`pcm16` format emits `.translatedAudioFormatUnsupported` and disables playback. Audio chunks must never create transcript rows.
+- If `sample_rate` is absent, the native player uses the official WebSocket PCM boundary default of 24 kHz PCM16; provider probes with `--capture-output-audio` record final observed output details.
+- `session.output_audio.done`, Stop, mute, route downgrade, fallback, and reconnect drain or clear queued playback audio through `RealtimeTranslatedAudioPlayer`.
+- `RealtimeTranslatedAudioPlayer` accepts mono PCM16 chunks, converts to AVAudioEngine float buffers, bounds queued bytes, tracks drops, supports mute/volume, and has a no-engine test mode for deterministic smokes.
+- `SystemAudioManager.makeStreamConfiguration(excludeCurrentProcessAudio:)` sets `SCStreamConfiguration.excludesCurrentProcessAudio = true` on supported macOS runtimes; `system_audio_exclusion_smoke.swift` verifies this config remains wired.
 - If current-process audio exclusion is unavailable or a synthetic loopback/runtime probe shows app audio is still captured, playback stays disabled with a user-facing reason.
-- ScreenCaptureKit exclusion does not stop laptop-speaker bleed into the microphone. When microphone capture is active and the output looks like speakers, playback must be blocked or require a headphones/safe-output confirmation.
+- ScreenCaptureKit exclusion does not stop laptop-speaker bleed into the microphone. When microphone capture is active, playback requires the user to confirm headphones/safe output; the UI never claims room-speaker safety.
 - Cost UI should state that translated audio playback uses the already-active `gpt-realtime-translate` translation session unless current official OpenAI pricing docs require a separate output-audio charge.
 - Text export remains the default. Do not write raw translated audio files unless a later export PRD scopes and verifies that behavior.
 
@@ -622,9 +627,12 @@ Verification helpers:
 - Transcript follow UI smoke: `swiftc tools/realtime-foundation/tests/transcript_follow_ui_smoke.swift -o /tmp/transcript_follow_ui_smoke && /tmp/transcript_follow_ui_smoke`
 - Language detector smoke: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift tools/realtime-foundation/tests/language_detector_smoke.swift -o /tmp/language_detector_smoke && /tmp/language_detector_smoke`
 - Synthetic app E2E: `swiftc Sources/MeetingTranslator/Models/TranscriptionEntry.swift Sources/MeetingTranslator/Services/OpenAIRealtime/*.swift tools/realtime-foundation/tests/realtime_app_e2e.swift -o /tmp/realtime_app_e2e && /tmp/realtime_app_e2e`
+- ScreenCaptureKit exclusion smoke: `swiftc -target arm64-apple-macosx14.0 -framework ScreenCaptureKit -framework AVFoundation -framework CoreGraphics -framework Combine Sources/MeetingTranslator/Managers/SystemAudioManager.swift tools/realtime-foundation/tests/system_audio_exclusion_smoke.swift -o /tmp/system_audio_exclusion_smoke && /tmp/system_audio_exclusion_smoke`
+- Installed-app current-process exclusion probe: `"/Applications/MeetingTranslator.app/Contents/MacOS/MeetingTranslator" --run-system-audio-exclusion-probe` or the mission runner's `open -W` wrapper. The probe uses external synthetic `afplay` audio as a positive ScreenCaptureKit control, then plays a synthetic tone through `RealtimeTranslatedAudioPlayer` in the app process and fails if current-process playback is captured at a meaningful fraction of the external control.
+- Provider translated-output capture: `tools/realtime-foundation/realtime-foundation probe --mode translation --audio /tmp/mtp_realtime_probe_audio/mtp_realtime_translate_en_to_zh_long.wav --target zh --max-audio-seconds 12 --i-understand-audio-is-sent-to-openai --show-text --capture-output-audio /tmp/mtp_realtime_probe_audio/translated_audio_en_to_zh.wav --timeout 30`
 - Realtime foundation CLI recommendation smoke: `tools/realtime-foundation/realtime-foundation recommend --task interpreter --show-translations --no-same-language --pinned-source-language --interpreter-session`
 - Provider probes must use generated/non-private fixtures and `--i-understand-audio-is-sent-to-openai`; never use private meeting audio. `tools/realtime-foundation/generate_synthetic_probe_audio.sh` creates macOS `say` fixtures under `/tmp/mtp_realtime_probe_audio`, and `probe --max-audio-seconds` can be raised for long-utterance translation checks. The probe CLI uses a standard-library WebSocket and PCM fallback when `websocket-client` or `audioop` are absent from the login-shell Python.
-- Full local verification can be run with `tools/realtime-foundation/run_realtime_mission_verification.sh --local-only`. The same script without `--local-only` includes the synthetic provider probes and requires a valid `OPENAI_API_KEY`; on 2026-05-13 it passed for `gpt-realtime-whisper`, `gpt-realtime-translate` EN->ZH, `gpt-realtime-translate` ZH->EN, `gpt-realtime-translate` code-switch, and `gpt-realtime-2` agent text.
+- Full local verification can be run with `tools/realtime-foundation/run_realtime_mission_verification.sh --local-only`. The same script without `--local-only` includes the synthetic provider probes and requires a valid OpenAI key; it uses `OPENAI_API_KEY` if set, otherwise reads the already-saved Meeting Translator app key from UserDefaults into the transient probe process without printing it. On 2026-05-13 it passed for `gpt-realtime-whisper`, `gpt-realtime-translate` EN->ZH, `gpt-realtime-translate` ZH->EN, `gpt-realtime-translate` code-switch, and `gpt-realtime-2` agent text.
 
 ---
 

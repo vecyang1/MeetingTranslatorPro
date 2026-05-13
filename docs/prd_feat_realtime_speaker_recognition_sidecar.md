@@ -20,6 +20,7 @@ Product rule:
 - realtime path owns speed and user-visible text;
 - diarization sidecar owns delayed speaker labels;
 - the sidecar may annotate rows, but must not rewrite trusted realtime transcript text by default.
+- translated-audio microphone/speaker feedback safety is owned by `docs/prd_feat_realtime_translated_audio_playback.md`, not by speaker recognition. ScreenCaptureKit current-process exclusion and headphones/safe-output confirmation prevent recapture loops; the sidecar must not claim room-speaker safety.
 
 Official OpenAI anchors:
 
@@ -213,3 +214,4 @@ Stop and report if:
 | Date | Version | Change |
 |---|---:|---|
 | 2026-05-13 | 1.0 | Goal-ready delayed speaker recognition sidecar PRD. |
+| 2026-05-13 | 1.1 | Clarified that translated-audio feedback prevention belongs to the M8 playback PRD and is separate from delayed speaker-label attribution. |

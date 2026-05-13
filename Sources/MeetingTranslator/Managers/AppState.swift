@@ -25,7 +25,12 @@ final class AppState: ObservableObject {
     @Published var realtimeCaptionLatency: RealtimeCaptionLatencyPreset = .balanced
     @Published var realtimeReasoningEffort: RealtimeReasoningEffort = .low
     @Published var realtimeInterpreterSessionEnabled: Bool = false
-    @Published var realtimeTranslatedAudioPlayback: Bool = false
+    @Published var realtimeTranslatedAudioPlaybackEnabled: Bool = false
+    @Published var realtimeTranslatedAudioMuted: Bool = false
+    @Published var realtimeTranslatedAudioVolume: Double = 0.65
+    @Published var realtimeTranslatedAudioSafeOutputConfirmed: Bool = false
+    @Published var realtimeTranslatedAudioSafetyStatus: TranslatedAudioSafetyStatus = .needsHeadphonesConfirmation
+    @Published var realtimeTranslatedAudioPlaybackActive: Bool = false
     @Published var realtimeAutomaticFallback: Bool = true
     @Published var speakerRecognitionMode: SpeakerRecognitionMode = .off
     @Published var openAIRealtimeState: RealtimeSessionState = .disconnected
@@ -56,6 +61,7 @@ final class AppState: ObservableObject {
     private var geminiFlashService: GeminiFlashService
     private var geminiLiveService: GeminiLiveService
     private let realtimeCoordinator = OpenAIRealtimeCoordinator()
+    private let translatedAudioPlayer = RealtimeTranslatedAudioPlayer()
     private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Pipeline Buffers
@@ -99,6 +105,7 @@ final class AppState: ObservableObject {
     private var lastConfirmedLanguage: String? = nil
     private var draftEntryIDs: Set<UUID> = []
     private var stitchWindowStart: Date = Date()
+    private var translatedAudioPlaybackWasActiveThisSession = false
 
     /// Input languages the user expects speakers to use.
     /// Empty = auto-detect all. Single = strongest Whisper hint. Multiple = prompt hint.
@@ -119,7 +126,10 @@ final class AppState: ObservableObject {
     private let realtimeCaptionLatencyKey = "com.meetingtranslator.realtime.captionlatency"
     private let realtimeReasoningEffortKey = "com.meetingtranslator.realtime.reasoningeffort"
     private let realtimeInterpreterSessionEnabledKey = "com.meetingtranslator.realtime.interpretersessionenabled"
-    private let realtimeTranslatedAudioPlaybackKey = "com.meetingtranslator.realtime.translatedaudioplayback"
+    private let realtimeTranslatedAudioPlaybackEnabledKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.enabled"
+    private let realtimeTranslatedAudioMutedKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.muted"
+    private let realtimeTranslatedAudioVolumeKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.volume"
+    private let realtimeTranslatedAudioSafeOutputConfirmedKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutput"
     private let realtimeAutomaticFallbackKey = "com.meetingtranslator.realtime.automaticfallback"
     private let speakerRecognitionModeKey = "com.meetingtranslator.speakerrecognition.mode"
 
@@ -399,7 +409,10 @@ final class AppState: ObservableObject {
         let savedRealtimeLatency = UserDefaults.standard.string(forKey: realtimeCaptionLatencyKey) ?? RealtimeCaptionLatencyPreset.balanced.rawValue
         let savedRealtimeReasoning = UserDefaults.standard.string(forKey: realtimeReasoningEffortKey) ?? RealtimeReasoningEffort.low.rawValue
         let savedRealtimeInterpreter = UserDefaults.standard.object(forKey: realtimeInterpreterSessionEnabledKey) as? Bool ?? false
-        let savedRealtimeAudioPlayback = UserDefaults.standard.object(forKey: realtimeTranslatedAudioPlaybackKey) as? Bool ?? false
+        let savedRealtimeAudioPlayback = UserDefaults.standard.object(forKey: realtimeTranslatedAudioPlaybackEnabledKey) as? Bool ?? false
+        let savedRealtimeAudioMuted = UserDefaults.standard.object(forKey: realtimeTranslatedAudioMutedKey) as? Bool ?? false
+        let savedRealtimeAudioVolume = UserDefaults.standard.object(forKey: realtimeTranslatedAudioVolumeKey) as? Double ?? 0.65
+        let savedRealtimeSafeOutput = UserDefaults.standard.object(forKey: realtimeTranslatedAudioSafeOutputConfirmedKey) as? Bool ?? false
         let savedRealtimeFallback = UserDefaults.standard.object(forKey: realtimeAutomaticFallbackKey) as? Bool ?? true
         let savedSpeakerRecognitionMode = UserDefaults.standard.string(forKey: speakerRecognitionModeKey) ?? SpeakerRecognitionMode.off.rawValue
 
@@ -417,7 +430,10 @@ final class AppState: ObservableObject {
         self.realtimeCaptionLatency = RealtimeCaptionLatencyPreset(rawValue: savedRealtimeLatency) ?? .balanced
         self.realtimeReasoningEffort = RealtimeReasoningEffort(rawValue: savedRealtimeReasoning) ?? .low
         self.realtimeInterpreterSessionEnabled = savedRealtimeInterpreter
-        self.realtimeTranslatedAudioPlayback = savedRealtimeAudioPlayback
+        self.realtimeTranslatedAudioPlaybackEnabled = savedRealtimeAudioPlayback
+        self.realtimeTranslatedAudioMuted = savedRealtimeAudioMuted
+        self.realtimeTranslatedAudioVolume = min(max(savedRealtimeAudioVolume, 0), 1)
+        self.realtimeTranslatedAudioSafeOutputConfirmed = savedRealtimeSafeOutput
         self.realtimeAutomaticFallback = savedRealtimeFallback
         self.speakerRecognitionMode = SpeakerRecognitionMode(rawValue: savedSpeakerRecognitionMode) ?? .off
         self.whisperService = WhisperService(apiKey: savedKey)
@@ -428,6 +444,9 @@ final class AppState: ObservableObject {
         setupBindings()
         setupGeminiLiveCallbacks()
         setupOpenAIRealtimeCallbacks()
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        translatedAudioPlayer.setMuted(realtimeTranslatedAudioMuted)
+        translatedAudioPlayer.setVolume(realtimeTranslatedAudioVolume)
     }
 
     private func setupBindings() {
@@ -610,6 +629,11 @@ final class AppState: ObservableObject {
 
         do {
             let useRealtimeTranslationSession = shouldUseRealtimeTranslationSession(sameLanguage: sameLanguage)
+            let useTranslatedAudioPlayback = mayUseRealtimeTranslatedAudioPlayback(sameLanguage: sameLanguage)
+            if !useTranslatedAudioPlayback {
+                translatedAudioPlayer.stop(clearQueue: true)
+                realtimeTranslatedAudioPlaybackActive = false
+            }
             let decision = try await realtimeCoordinator.start(
                 apiKey: apiKey,
                 sources: sources,
@@ -617,7 +641,7 @@ final class AppState: ObservableObject {
                 sameLanguage: sameLanguage,
                 hasPinnedSourceLanguage: inputLanguages.count == 1,
                 wantsInterpreterSession: useRealtimeTranslationSession,
-                translatedAudioPlaybackEnabled: false,
+                translatedAudioPlaybackEnabled: useTranslatedAudioPlayback,
                 targetLanguageCode: targetLanguage.isoCode,
                 languageHint: inputLanguages.count == 1 ? inputLanguages.first?.isoCode : nil,
                 latencyPreset: realtimeCaptionLatency,
@@ -638,6 +662,8 @@ final class AppState: ObservableObject {
 
     private func stopOpenAIRealtimeSessions() {
         realtimeCoordinator.stop()
+        translatedAudioPlayer.stop(clearQueue: true)
+        realtimeTranslatedAudioPlaybackActive = false
         activeRealtimeMode = nil
         openAIRealtimeState = .disconnected
     }
@@ -688,9 +714,49 @@ final class AppState: ObservableObject {
             case .agent:
                 costTracker.logOpenAIRealtimeAgent(audioDurationSeconds: audioDuration, inputTokens: inputTokens, outputTokens: outputTokens)
             }
-        case .translatedAudioChunk:
-            // Text-first release: translated audio playback stays off by default.
-            break
+        case .translatedAudioChunk(let source, let itemID, let data, let format, let sampleRate, let channels, _):
+            guard mayUseRealtimeTranslatedAudioPlayback(sameLanguage: specifiedInputMatchesTarget()) else {
+                translatedAudioPlayer.stop(clearQueue: true)
+                realtimeTranslatedAudioPlaybackActive = false
+                return
+            }
+            if let format, format.lowercased() != "pcm16" {
+                realtimeTranslatedAudioSafetyStatus = .providerFormatUnknown
+                realtimeTranslatedAudioPlaybackActive = false
+                translatedAudioPlayer.stop(clearQueue: true)
+                return
+            }
+            if let channels, channels != RealtimeTranslatedAudioPlayer.defaultChannels {
+                realtimeTranslatedAudioSafetyStatus = .providerFormatUnknown
+                realtimeTranslatedAudioPlaybackActive = false
+                translatedAudioPlayer.stop(clearQueue: true)
+                return
+            }
+            do {
+                try translatedAudioPlayer.configure(
+                    sampleRate: sampleRate ?? RealtimeTranslatedAudioPlayer.defaultSampleRate,
+                    channels: channels ?? RealtimeTranslatedAudioPlayer.defaultChannels,
+                    volume: realtimeTranslatedAudioVolume
+                )
+                translatedAudioPlayer.setMuted(realtimeTranslatedAudioMuted)
+                translatedAudioPlayer.enqueuePCM16(data, itemID: itemID, source: source, sampleRate: sampleRate)
+                realtimeTranslatedAudioPlaybackActive = !realtimeTranslatedAudioMuted && translatedAudioPlayer.queuedByteCount > 0
+                translatedAudioPlaybackWasActiveThisSession = true
+            } catch {
+                realtimeTranslatedAudioSafetyStatus = .providerFormatUnknown
+                realtimeTranslatedAudioPlaybackActive = false
+                translatedAudioPlayer.stop(clearQueue: true)
+            }
+        case .translatedAudioDone(let source, let itemID, _):
+            translatedAudioPlayer.finishSegment(itemID: itemID, source: source)
+            realtimeTranslatedAudioPlaybackActive = translatedAudioPlayer.queuedByteCount > 0 && !realtimeTranslatedAudioMuted
+        case .translatedAudioFormatUnsupported(_, _, let format, _):
+            realtimeTranslatedAudioSafetyStatus = .providerFormatUnknown
+            realtimeTranslatedAudioPlaybackActive = false
+            realtimeTranslatedAudioPlaybackEnabled = false
+            UserDefaults.standard.set(false, forKey: realtimeTranslatedAudioPlaybackEnabledKey)
+            translatedAudioPlayer.stop(clearQueue: true)
+            showError("Translated audio format \(format) is not supported. Playback disabled.")
         case .partialTranscript, .finalTranscript, .partialTranslation, .finalTranslation:
             guard let reduced = realtimeCoordinator.reduce(event) else { return }
             if reduced.isFinal {
@@ -1007,6 +1073,36 @@ final class AppState: ObservableObject {
         showTranslations && !sameLanguage && inputLanguages.count == 1 && realtimeInterpreterSessionEnabled
     }
 
+    private func currentRealtimeTranslatedAudioSafetyStatus() -> TranslatedAudioSafetyStatus {
+        guard SystemAudioManager.currentProcessAudioExclusionSupported else {
+            return .blockedSystemCaptureIncludesAppAudio
+        }
+        if isMicEnabled && !realtimeTranslatedAudioSafeOutputConfirmed {
+            return .needsHeadphonesConfirmation
+        }
+        return .ready
+    }
+
+    private func refreshRealtimeTranslatedAudioSafetyStatus() {
+        realtimeTranslatedAudioSafetyStatus = currentRealtimeTranslatedAudioSafetyStatus()
+        if !realtimeTranslatedAudioSafetyStatus.isReady {
+            translatedAudioPlayer.stop(clearQueue: true)
+            realtimeTranslatedAudioPlaybackActive = false
+        }
+    }
+
+    private func mayUseRealtimeTranslatedAudioPlayback(sameLanguage: Bool) -> Bool {
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        return RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: showTranslations,
+            inputLanguageCount: inputLanguages.count,
+            sameLanguage: sameLanguage,
+            interpreterSessionEnabled: realtimeInterpreterSessionEnabled,
+            userOptedIn: realtimeTranslatedAudioPlaybackEnabled,
+            safetyStatus: realtimeTranslatedAudioSafetyStatus
+        )
+    }
+
     private func shouldUseRealtimeTextTranslationFallback(
         sameLanguage: Bool,
         realtimeMode: RealtimeRouteMode?
@@ -1018,6 +1114,8 @@ final class AppState: ObservableObject {
         guard selectedEngine == .openAIRealtime, realtimeAutomaticFallback else { return }
         cancelOpenAIRealtimeRecovery()
         stopOpenAIRealtimeSessions()
+        translatedAudioPlayer.stop(clearQueue: true)
+        realtimeTranslatedAudioPlaybackActive = false
         stopPipelineTimers()
         selectedEngine = .openAI
         configureAudioCaptureForSelectedEngine()
@@ -1053,7 +1151,10 @@ final class AppState: ObservableObject {
         UserDefaults.standard.set(realtimeCaptionLatency.rawValue, forKey: realtimeCaptionLatencyKey)
         UserDefaults.standard.set(realtimeReasoningEffort.rawValue, forKey: realtimeReasoningEffortKey)
         UserDefaults.standard.set(realtimeInterpreterSessionEnabled, forKey: realtimeInterpreterSessionEnabledKey)
-        UserDefaults.standard.set(realtimeTranslatedAudioPlayback, forKey: realtimeTranslatedAudioPlaybackKey)
+        UserDefaults.standard.set(realtimeTranslatedAudioPlaybackEnabled, forKey: realtimeTranslatedAudioPlaybackEnabledKey)
+        UserDefaults.standard.set(realtimeTranslatedAudioMuted, forKey: realtimeTranslatedAudioMutedKey)
+        UserDefaults.standard.set(realtimeTranslatedAudioVolume, forKey: realtimeTranslatedAudioVolumeKey)
+        UserDefaults.standard.set(realtimeTranslatedAudioSafeOutputConfirmed, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
         UserDefaults.standard.set(realtimeAutomaticFallback, forKey: realtimeAutomaticFallbackKey)
         UserDefaults.standard.set(speakerRecognitionMode.rawValue, forKey: speakerRecognitionModeKey)
         whisperService.updateAPIKey(apiKey)
@@ -1062,6 +1163,7 @@ final class AppState: ObservableObject {
         geminiLiveService.updateAPIKey(googleAPIKey)
         geminiLiveService.updateTargetLanguage(targetLanguage.rawValue, isoCode: targetLanguage.isoCode)
         realtimeCoordinator.updateAPIKey(apiKey)
+        refreshRealtimeTranslatedAudioSafetyStatus()
         if isRecording {
             configureAudioCaptureForSelectedEngine()
         }
@@ -1107,6 +1209,58 @@ final class AppState: ObservableObject {
         }
     }
 
+    func setRealtimeTranslatedAudioPlaybackEnabled(_ enabled: Bool) {
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        let allowed = enabled && RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: showTranslations,
+            inputLanguageCount: inputLanguages.count,
+            sameLanguage: specifiedInputMatchesTarget(),
+            interpreterSessionEnabled: realtimeInterpreterSessionEnabled,
+            userOptedIn: true,
+            safetyStatus: realtimeTranslatedAudioSafetyStatus
+        )
+        guard realtimeTranslatedAudioPlaybackEnabled != allowed else { return }
+        realtimeTranslatedAudioPlaybackEnabled = allowed
+        UserDefaults.standard.set(allowed, forKey: realtimeTranslatedAudioPlaybackEnabledKey)
+        if !allowed {
+            translatedAudioPlayer.stop(clearQueue: true)
+            realtimeTranslatedAudioPlaybackActive = false
+        }
+        if selectedEngine == .openAIRealtime && isRecording {
+            Task { await refreshOpenAIRealtimeRoutingIfNeeded() }
+        }
+    }
+
+    func setRealtimeTranslatedAudioMuted(_ muted: Bool) {
+        guard realtimeTranslatedAudioMuted != muted else { return }
+        realtimeTranslatedAudioMuted = muted
+        UserDefaults.standard.set(muted, forKey: realtimeTranslatedAudioMutedKey)
+        translatedAudioPlayer.setMuted(muted)
+        realtimeTranslatedAudioPlaybackActive = !muted && translatedAudioPlayer.queuedByteCount > 0
+    }
+
+    func setRealtimeTranslatedAudioVolume(_ volume: Double) {
+        let clamped = min(max(volume, 0), 1)
+        guard realtimeTranslatedAudioVolume != clamped else { return }
+        realtimeTranslatedAudioVolume = clamped
+        UserDefaults.standard.set(clamped, forKey: realtimeTranslatedAudioVolumeKey)
+        translatedAudioPlayer.setVolume(clamped)
+    }
+
+    func setRealtimeTranslatedAudioSafeOutputConfirmed(_ confirmed: Bool) {
+        guard realtimeTranslatedAudioSafeOutputConfirmed != confirmed else { return }
+        realtimeTranslatedAudioSafeOutputConfirmed = confirmed
+        UserDefaults.standard.set(confirmed, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        if !realtimeTranslatedAudioSafetyStatus.isReady {
+            realtimeTranslatedAudioPlaybackEnabled = false
+            UserDefaults.standard.set(false, forKey: realtimeTranslatedAudioPlaybackEnabledKey)
+        }
+        if selectedEngine == .openAIRealtime && isRecording {
+            Task { await refreshOpenAIRealtimeRoutingIfNeeded() }
+        }
+    }
+
     func setSpeakerRecognitionMode(_ mode: SpeakerRecognitionMode) {
         guard speakerRecognitionMode != mode else { return }
         speakerRecognitionMode = mode
@@ -1135,6 +1289,7 @@ final class AppState: ObservableObject {
         errorMessage = nil
         processingCount = 0
         costTracker.resetSession()
+        translatedAudioPlaybackWasActiveThisSession = false
         cancelOpenAIRealtimeRecovery()
         resetPipelineState()
 
@@ -1252,6 +1407,10 @@ final class AppState: ObservableObject {
         let df = DateFormatter(); df.dateFormat = "HH:mm:ss"
         var out = "Meeting Transcript — \(DateFormatter.localizedString(from: Date(), dateStyle: .long, timeStyle: .short))\n"
         out += "Engine: \(selectedEngine.rawValue)\n"
+        if translatedAudioPlaybackWasActiveThisSession || realtimeTranslatedAudioPlaybackActive {
+            out += "Translated audio playback: enabled\n"
+            out += "Playback mode: safe preview\n"
+        }
         out += String(repeating: "=", count: 60) + "\n\n"
         for entry in entries where !entry.isDraft {
             let time = df.string(from: entry.timestamp)

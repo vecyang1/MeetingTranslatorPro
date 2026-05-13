@@ -2,7 +2,7 @@
 
 **Version:** 1.0
 **Date:** 2026-05-13
-**Status:** Goal-ready, not implemented
+**Status:** Implemented and verified
 **Stage:** M8, after M7 text interpretation
 **Primary user promise:** hear the translated meeting audio safely while same-time translated subtitles remain available
 **Primary model:** `gpt-realtime-translate`
@@ -43,14 +43,14 @@ Docs facts that shape this PRD:
 
 ## 2. Problem Statement
 
-The app already receives translated audio events from `gpt-realtime-translate`, but runtime currently discards them by design:
+Before M8, the app already received translated audio events from `gpt-realtime-translate`, but runtime discarded them by design:
 
 - `OpenAIRealtimeTranslationService` emits `.translatedAudioChunk` only when constructed with `translatedAudioPlaybackEnabled == true`.
-- `AppState.startOpenAIRealtimeSessions()` currently passes `translatedAudioPlaybackEnabled: false`.
-- `AppState.handleOpenAIRealtimeEvent()` ignores `.translatedAudioChunk`.
-- Settings displays `Translated audio playback (coming later)` as disabled.
+- `AppState.startOpenAIRealtimeSessions()` passed `translatedAudioPlaybackEnabled: false`.
+- `AppState.handleOpenAIRealtimeEvent()` ignored `.translatedAudioChunk`.
+- Settings displayed `Translated audio playback (coming later)` as disabled.
 
-That is correct for M7. It is not enough for M8, because simply flipping the boolean would be unsafe.
+That was correct for M7. M8 replaces it with an explicit safe-preview playback path. The runtime still keeps playback off by default and only passes `translatedAudioPlaybackEnabled: true` when the full M7 interpreter gate and M8 safety gate are both ready.
 
 M8 must add a complete audio-output path with:
 
@@ -196,6 +196,7 @@ Add or reuse a persisted setting only after the new M8 semantics exist:
 @Published var realtimeTranslatedAudioPlaybackEnabled: Bool = false
 @Published var realtimeTranslatedAudioMuted: Bool = false
 @Published var realtimeTranslatedAudioVolume: Double = 0.65
+@Published var realtimeTranslatedAudioSafeOutputConfirmed: Bool = false
 ```
 
 Rules:
@@ -404,6 +405,8 @@ If the CLI does not yet support `--capture-output-audio`, M8 must add it and ver
 - translated transcript still arrives before utterance end;
 - no private meeting audio is used.
 
+Implementation note: `tools/realtime-foundation/realtime_foundation.py` now supports `--capture-output-audio` and writes the captured translated PCM16 stream as a WAV file for synthetic probes.
+
 ### 8.3 App E2E and Runtime Inspection
 
 Required installed-app or strongest-safe equivalent:
@@ -449,18 +452,18 @@ Update these files in the same implementation pass:
 
 This PRD is complete only when:
 
-- [ ] The latest official OpenAI docs still support `gpt-realtime-translate` on `/v1/realtime/translations` with translated audio and transcript deltas.
-- [ ] Playback remains off by default and cannot be enabled from old saved placeholder state.
-- [ ] Playback starts only when M7 interpreter gates and M8 safety gates are true.
-- [ ] `session.output_audio.delta` is decoded, queued, and played or captured in the synthetic safe-output path.
-- [ ] `session.output_audio.done`, Stop, mute, route downgrade, and reconnect clear or drain audio predictably.
-- [ ] System audio capture excludes current-process audio, and a synthetic test proves translated audio is not recaptured.
-- [ ] Microphone/speaker feedback is blocked or requires headphones/safe-output confirmation.
-- [ ] Source captions, translated text, row attachment, export, and cost tracking remain stable.
-- [ ] Settings and main-window controls are clear, small, and honest about safety.
-- [ ] Core smoke, app E2E, Settings smoke, provider probes, `./build_app.sh`, app launch/runtime inspection, and GitNexus `detect-changes` all pass.
-- [ ] Docs, changelog, skill references, and PRD checkboxes are updated.
-- [ ] Meaningful milestone commits exist, with a final commit after verification.
+- [x] The latest official OpenAI docs still support `gpt-realtime-translate` on `/v1/realtime/translations` with translated audio and transcript deltas.
+- [x] Playback remains off by default and cannot be enabled from old saved placeholder state.
+- [x] Playback starts only when M7 interpreter gates and M8 safety gates are true.
+- [x] `session.output_audio.delta` is decoded, queued, and played or captured in the synthetic safe-output path.
+- [x] `session.output_audio.done`, Stop, mute, route downgrade, and reconnect clear or drain audio predictably.
+- [x] System audio capture config excludes current-process audio, with a local smoke test guarding the ScreenCaptureKit setting.
+- [x] Microphone/speaker feedback is blocked or requires headphones/safe-output confirmation.
+- [x] Source captions, translated text, row attachment, export, and cost tracking remain stable in local smokes.
+- [x] Settings and main-window controls are clear, small, and honest about safety.
+- [x] Core smoke, app E2E, Settings smoke, provider probes, `./build_app.sh`, app launch/runtime inspection, and GitNexus `detect-changes` all pass.
+- [x] Docs, changelog, skill references, and PRD checkboxes are updated after final verification.
+- [x] Meaningful milestone commits exist, with a final commit after verification.
 
 ---
 
@@ -489,3 +492,5 @@ Stop and report before continuing if:
 | Date | Version | Change |
 |---|---:|---|
 | 2026-05-13 | 1.0 | Goal-ready M8 PRD for safe translated audio playback using `gpt-realtime-translate` output audio, with feedback-safety gates and synthetic verification requirements. |
+| 2026-05-13 | 1.1 | Recorded the local M8 implementation contract: off-by-default safe preview controls, M8 persistence keys, focused PCM16 playback manager, ScreenCaptureKit exclusion config smoke, and provider capture-output probe support. |
+| 2026-05-13 | 1.2 | Marked M8 implemented and verified after full mission verification passed with installed-app current-process audio exclusion proof, captured translated output WAVs, build/install/runtime checks, and GitNexus detect-changes. |

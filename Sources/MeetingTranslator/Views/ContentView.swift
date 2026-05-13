@@ -540,6 +540,23 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .help(appState.showTranslations ? "Hide translations" : "Show translations")
 
+                if appState.realtimeTranslatedAudioPlaybackEnabled {
+                    Button(action: {
+                        appState.setRealtimeTranslatedAudioMuted(!appState.realtimeTranslatedAudioMuted)
+                    }) {
+                        Image(systemName: appState.realtimeTranslatedAudioMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                            .font(.system(size: 12))
+                            .foregroundStyle(appState.realtimeTranslatedAudioPlaybackActive ? .green : .secondary)
+                            .frame(width: 28, height: 28)
+                            .background(
+                                Circle()
+                                    .fill(appState.realtimeTranslatedAudioPlaybackActive ? Color.green.opacity(0.12) : Color.primary.opacity(0.05))
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(appState.realtimeTranslatedAudioMuted ? "Unmute translated audio" : "Mute translated audio")
+                }
+
                 if !appState.entries.isEmpty {
                     Button(action: exportTranscript) {
                         Image(systemName: "square.and.arrow.up")

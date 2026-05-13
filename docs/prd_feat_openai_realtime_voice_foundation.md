@@ -37,7 +37,7 @@ Known follow-up:
 
 - **M6 required now:** The current `OpenAI Realtime (Recommended)` route may still wait for a pause on long sentences because the default Realtime-2 caption path uses server VAD response boundaries. The next implementation pass must make caption-only mode delta-first with `gpt-realtime-whisper`: visible text should stream while the user is still speaking, before the sentence is complete.
 - **M7 stage:** Realtime translation follows `docs/prd_feat_openai_realtime_translate_interpreter.md`. `gpt-realtime-translate` is the interpreter model; `gpt-realtime-whisper` is only a source-caption audit sidecar.
-- **M8 next stage:** Safe translated audio playback follows `docs/prd_feat_realtime_translated_audio_playback.md`. Playback must use `gpt-realtime-translate` output audio and stay disabled until feedback safety is proven.
+- **M8 stage:** Safe translated audio playback follows `docs/prd_feat_realtime_translated_audio_playback.md`. Playback uses `gpt-realtime-translate` output audio, stays off by default, and can enable only through the explicit safe-preview feedback gates.
 - Implemented 2026-05-12: transient TLS/WebSocket startup errors now run through `RealtimeConnectionRecoveryPolicy` and `AppState` schedules up to two short Realtime restarts. Legacy OpenAI fallback happens only after retry exhaustion when automatic fallback is enabled. Permanent auth/quota/model-access errors are not retried.
 
 ---

@@ -5,11 +5,16 @@ struct SyntheticRealtimeTimeline {
     private(set) var entries: [TranscriptionEntry] = []
     private(set) var firstPartialOffset: TimeInterval?
     private(set) var translatedAudioChunkCount = 0
+    private(set) var translatedAudioDoneCount = 0
     private let start = Date()
 
     mutating func apply(_ event: RealtimeAppEvent) {
         if case .translatedAudioChunk = event {
             translatedAudioChunkCount += 1
+            return
+        }
+        if case .translatedAudioDone = event {
+            translatedAudioDoneCount += 1
             return
         }
         guard let reduced = reducer.reduce(event) else { return }
@@ -300,9 +305,20 @@ func runSyntheticTranslationE2E(
     playbackService.processServerEvent([
         "type": "session.output_audio.delta",
         "item_id": itemID,
+        "format": "pcm16",
+        "sample_rate": 24000,
+        "channels": 1,
         "delta": Data([4, 5, 6]).base64EncodedString()
     ])
     precondition(timeline.translatedAudioChunkCount == 1)
+    precondition(timeline.entries.count == 1)
+
+    playbackService.processServerEvent([
+        "type": "session.output_audio.done",
+        "item_id": itemID
+    ])
+    precondition(timeline.translatedAudioDoneCount == 1)
+    precondition(timeline.entries.count == 1)
 }
 
 @main

@@ -45,6 +45,55 @@ enum RealtimeRouteMode: String {
     case agent
 }
 
+enum TranslatedAudioSafetyStatus: Equatable {
+    case ready
+    case blockedSystemCaptureIncludesAppAudio
+    case blockedLikelySpeakerOutputWithMicActive
+    case needsHeadphonesConfirmation
+    case providerFormatUnknown
+    case unavailable(String)
+
+    var isReady: Bool {
+        if case .ready = self { return true }
+        return false
+    }
+
+    var userMessage: String {
+        switch self {
+        case .ready:
+            return "Ready: translated audio safe preview is available."
+        case .blockedSystemCaptureIncludesAppAudio:
+            return "Blocked: system capture cannot prove the app's own audio is excluded."
+        case .blockedLikelySpeakerOutputWithMicActive:
+            return "Blocked: speaker output could feed back into the microphone."
+        case .needsHeadphonesConfirmation:
+            return "Waiting: use headphones or confirm a safe output to avoid microphone feedback."
+        case .providerFormatUnknown:
+            return "Blocked: translated audio format is not confirmed as PCM16."
+        case .unavailable(let reason):
+            return "Unavailable: \(reason)"
+        }
+    }
+}
+
+enum RealtimeTranslatedAudioPlaybackGate {
+    static func mayEnable(
+        showTranslations: Bool,
+        inputLanguageCount: Int,
+        sameLanguage: Bool,
+        interpreterSessionEnabled: Bool,
+        userOptedIn: Bool,
+        safetyStatus: TranslatedAudioSafetyStatus
+    ) -> Bool {
+        showTranslations
+            && inputLanguageCount == 1
+            && !sameLanguage
+            && interpreterSessionEnabled
+            && userOptedIn
+            && safetyStatus.isReady
+    }
+}
+
 enum RealtimeCaptionLatencyPreset: String, CaseIterable, Identifiable {
     case aggressive = "Aggressive"
     case balanced = "Balanced"
@@ -190,7 +239,17 @@ enum RealtimeAppEvent {
     case finalTranscript(source: TranscriptionEntry.AudioSource, itemID: String, text: String, language: String?, timestamp: Date)
     case partialTranslation(source: TranscriptionEntry.AudioSource, itemID: String, text: String, timestamp: Date)
     case finalTranslation(source: TranscriptionEntry.AudioSource, itemID: String, text: String, language: String?, timestamp: Date)
-    case translatedAudioChunk(source: TranscriptionEntry.AudioSource, itemID: String, data: Data, timestamp: Date)
+    case translatedAudioChunk(
+        source: TranscriptionEntry.AudioSource,
+        itemID: String,
+        data: Data,
+        format: String?,
+        sampleRate: Double?,
+        channels: Int?,
+        timestamp: Date
+    )
+    case translatedAudioDone(source: TranscriptionEntry.AudioSource, itemID: String, timestamp: Date)
+    case translatedAudioFormatUnsupported(source: TranscriptionEntry.AudioSource, itemID: String, format: String, timestamp: Date)
     case sessionStateChanged(source: TranscriptionEntry.AudioSource, state: RealtimeSessionState)
     case usageUpdated(source: TranscriptionEntry.AudioSource, mode: RealtimeRouteMode, audioDurationSeconds: Double, inputTokens: Int, outputTokens: Int)
     case audioQueued(source: TranscriptionEntry.AudioSource, mode: RealtimeRouteMode, audioDurationSeconds: Double)

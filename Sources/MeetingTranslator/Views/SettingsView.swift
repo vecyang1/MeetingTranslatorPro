@@ -402,6 +402,34 @@ struct SettingsView: View {
         )
     }
 
+    private var realtimeTranslatedAudioPlaybackBinding: Binding<Bool> {
+        Binding(
+            get: { appState.realtimeTranslatedAudioPlaybackEnabled },
+            set: { appState.setRealtimeTranslatedAudioPlaybackEnabled($0) }
+        )
+    }
+
+    private var realtimeTranslatedAudioMutedBinding: Binding<Bool> {
+        Binding(
+            get: { appState.realtimeTranslatedAudioMuted },
+            set: { appState.setRealtimeTranslatedAudioMuted($0) }
+        )
+    }
+
+    private var realtimeTranslatedAudioVolumeBinding: Binding<Double> {
+        Binding(
+            get: { appState.realtimeTranslatedAudioVolume },
+            set: { appState.setRealtimeTranslatedAudioVolume($0) }
+        )
+    }
+
+    private var realtimeTranslatedAudioSafeOutputBinding: Binding<Bool> {
+        Binding(
+            get: { appState.realtimeTranslatedAudioSafeOutputConfirmed },
+            set: { appState.setRealtimeTranslatedAudioSafeOutputConfirmed($0) }
+        )
+    }
+
     private var speakerRecognitionModeBinding: Binding<SpeakerRecognitionMode> {
         Binding(
             get: { appState.speakerRecognitionMode },
@@ -430,6 +458,21 @@ struct SettingsView: View {
 
     private var realtimeInterpreterStatusColor: Color {
         realtimeInterpreterStatusText.hasPrefix("Ready") ? .green : .secondary
+    }
+
+    private var realtimeTranslatedAudioCanEnable: Bool {
+        realtimeInterpreterStatusText.hasPrefix("Ready") && appState.realtimeTranslatedAudioSafetyStatus.isReady
+    }
+
+    private var realtimeTranslatedAudioStatusText: String {
+        if !realtimeInterpreterStatusText.hasPrefix("Ready") {
+            return "Waiting: complete live interpretation gates before playback."
+        }
+        return appState.realtimeTranslatedAudioSafetyStatus.userMessage
+    }
+
+    private var realtimeTranslatedAudioStatusColor: Color {
+        realtimeTranslatedAudioCanEnable ? .green : .secondary
     }
 
     private var pipelineDiagram: some View {
@@ -549,13 +592,49 @@ struct SettingsView: View {
                 color: realtimeInterpreterStatusColor
             )
 
-            Toggle("Translated audio playback (coming later)", isOn: .constant(false))
+            Divider()
+
+            Text("Translated Audio")
                 .font(.system(size: 12, weight: .medium))
-                .disabled(true)
+
+            Toggle("Safe preview playback", isOn: realtimeTranslatedAudioPlaybackBinding)
+                .font(.system(size: 12, weight: .medium))
+                .disabled(!realtimeTranslatedAudioCanEnable)
+
+            Toggle("Safe output confirmed", isOn: realtimeTranslatedAudioSafeOutputBinding)
+                .font(.system(size: 12, weight: .medium))
+
+            Toggle("Mute translated audio", isOn: realtimeTranslatedAudioMutedBinding)
+                .font(.system(size: 12, weight: .medium))
+                .disabled(!appState.realtimeTranslatedAudioPlaybackEnabled)
+
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text("Translated Volume")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Text("\(Int(appState.realtimeTranslatedAudioVolume * 100))%")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+                Slider(value: realtimeTranslatedAudioVolumeBinding, in: 0...1, step: 0.05)
+                    .tint(.blue)
+                Text("Local playback volume for gpt-realtime-translate output audio.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .disabled(!appState.realtimeTranslatedAudioPlaybackEnabled)
 
             infoRow(
-                text: "Translated audio stays disabled until meeting-room feedback behavior is proven.",
-                icon: "speaker.slash.fill",
+                text: realtimeTranslatedAudioStatusText,
+                icon: realtimeTranslatedAudioCanEnable ? "speaker.wave.2.fill" : "speaker.slash.fill",
+                color: realtimeTranslatedAudioStatusColor
+            )
+
+            infoRow(
+                text: "Uses gpt-realtime-translate output audio. Use headphones to avoid microphone feedback; room-speaker safety is not claimed.",
+                icon: "headphones",
                 color: .secondary
             )
         }

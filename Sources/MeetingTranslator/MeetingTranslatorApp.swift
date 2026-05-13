@@ -3,7 +3,14 @@ import AppKit
 
 @main
 struct MeetingTranslatorApp: App {
-    @StateObject private var appState = AppState()
+    @StateObject private var appState: AppState
+
+    init() {
+        if CommandLine.arguments.contains("--run-system-audio-exclusion-probe") {
+            SystemAudioCurrentProcessExclusionProbe.runAndExit()
+        }
+        _appState = StateObject(wrappedValue: AppState())
+    }
 
     var body: some Scene {
         WindowGroup {

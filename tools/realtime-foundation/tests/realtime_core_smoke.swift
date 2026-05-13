@@ -73,6 +73,66 @@ struct RealtimeCoreSmoke {
         precondition(translation.shouldStartTranslationSession)
         precondition(translation.shouldStartSourceCaptionSession)
 
+        precondition(TranslatedAudioSafetyStatus.ready.userMessage.contains("Ready"))
+        precondition(TranslatedAudioSafetyStatus.needsHeadphonesConfirmation.userMessage.contains("headphones"))
+        precondition(TranslatedAudioSafetyStatus.providerFormatUnknown.userMessage.contains("audio format"))
+        precondition(RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 1,
+            sameLanguage: false,
+            interpreterSessionEnabled: true,
+            userOptedIn: true,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: false,
+            inputLanguageCount: 1,
+            sameLanguage: false,
+            interpreterSessionEnabled: true,
+            userOptedIn: true,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 2,
+            sameLanguage: false,
+            interpreterSessionEnabled: true,
+            userOptedIn: true,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 1,
+            sameLanguage: true,
+            interpreterSessionEnabled: true,
+            userOptedIn: true,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 1,
+            sameLanguage: false,
+            interpreterSessionEnabled: false,
+            userOptedIn: true,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 1,
+            sameLanguage: false,
+            interpreterSessionEnabled: true,
+            userOptedIn: false,
+            safetyStatus: .ready
+        ))
+        precondition(!RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: true,
+            inputLanguageCount: 1,
+            sameLanguage: false,
+            interpreterSessionEnabled: true,
+            userOptedIn: true,
+            safetyStatus: .needsHeadphonesConfirmation
+        ))
+
         let agent = router.route(
             showTranslations: true,
             sameLanguage: false,
@@ -397,16 +457,75 @@ struct RealtimeCoreSmoke {
         )
         var playbackAudioEventCount = 0
         playbackTranslationService.onEvent = { event in
-            if case .translatedAudioChunk(_, _, let data, _) = event {
+            if case .translatedAudioChunk(_, _, let data, let format, let sampleRate, let channels, _) = event {
                 playbackAudioEventCount += 1
                 precondition(data == Data([4, 5, 6]))
+                precondition(format == "pcm16")
+                precondition(sampleRate == 24_000)
+                precondition(channels == 1)
             }
         }
         playbackTranslationService.processServerEvent([
             "type": "session.output_audio.delta",
+            "format": "pcm16",
+            "sample_rate": 24000,
+            "channels": 1,
             "delta": Data([4, 5, 6]).base64EncodedString()
         ])
         precondition(playbackAudioEventCount == 1)
+
+        var playbackDoneEventCount = 0
+        playbackTranslationService.onEvent = { event in
+            if case .translatedAudioDone(_, let itemID, _) = event {
+                playbackDoneEventCount += 1
+                precondition(itemID == "audio_done_item")
+            }
+        }
+        playbackTranslationService.processServerEvent([
+            "type": "session.output_audio.done",
+            "item_id": "audio_done_item"
+        ])
+        precondition(playbackDoneEventCount == 1)
+
+        let unsupportedPlaybackService = OpenAIRealtimeTranslationService(
+            apiKey: "test-key",
+            source: source,
+            translatedAudioPlaybackEnabled: true
+        )
+        var unsupportedFormatSeen = false
+        unsupportedPlaybackService.onEvent = { event in
+            if case .translatedAudioFormatUnsupported(_, _, let format, _) = event {
+                unsupportedFormatSeen = format == "mulaw"
+            }
+        }
+        unsupportedPlaybackService.processServerEvent([
+            "type": "session.output_audio.delta",
+            "format": "mulaw",
+            "sample_rate": 8000,
+            "channels": 1,
+            "delta": Data([1, 2, 3]).base64EncodedString()
+        ])
+        precondition(unsupportedFormatSeen)
+
+        let player = RealtimeTranslatedAudioPlayer(startEngine: false, maxQueuedBytes: 16)
+        try! player.configure(sampleRate: 24_000, channels: 1, volume: 0.65)
+        player.enqueuePCM16(Data(repeating: 1, count: 12), itemID: "audio_1", source: source, sampleRate: 24_000)
+        precondition(player.queuedByteCount == 12)
+        player.enqueuePCM16(Data(repeating: 2, count: 12), itemID: "audio_1", source: source, sampleRate: 24_000)
+        precondition(player.queuedByteCount <= 16)
+        precondition(player.droppedChunkCount == 1)
+        player.setMuted(true)
+        precondition(player.isMuted)
+        precondition(player.queuedByteCount == 0)
+        player.enqueuePCM16(Data(repeating: 3, count: 8), itemID: "audio_2", source: source, sampleRate: 24_000)
+        precondition(player.queuedByteCount == 0)
+        player.setMuted(false)
+        player.enqueuePCM16(Data(repeating: 4, count: 8), itemID: "audio_3", source: source, sampleRate: 24_000)
+        precondition(player.queuedByteCount == 8)
+        player.finishSegment(itemID: "audio_3", source: source)
+        precondition(player.state == .idle || player.state == .playing)
+        player.stop(clearQueue: true)
+        precondition(player.queuedByteCount == 0)
 
         let staleFinalReducer = RealtimeEventReducer()
         _ = staleFinalReducer.reduce(

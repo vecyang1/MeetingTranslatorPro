@@ -94,7 +94,13 @@ final class RealtimeEventReducer {
                 supersededItemIDs: supersededItemIDs
             )
 
-        case .translatedAudioChunk, .sessionStateChanged, .usageUpdated, .audioQueued, .recoverableError:
+        case .translatedAudioChunk,
+             .translatedAudioDone,
+             .translatedAudioFormatUnsupported,
+             .sessionStateChanged,
+             .usageUpdated,
+             .audioQueued,
+             .recoverableError:
             return nil
         }
     }

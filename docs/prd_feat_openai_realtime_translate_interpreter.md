@@ -52,7 +52,7 @@ Current risk:
 
 - A checkbox named "Live translation session" is visible, but the surrounding copy still makes it easy to think Realtime Whisper is doing translation.
 - Synthetic provider tests exist, but the installed app has not yet been proven as a complete user-facing interpreter flow.
-- Translated audio playback is not safe enough for meeting-room use and must remain disabled.
+- Translated audio playback is not part of M7. M8 owns the optional safe-preview playback path and keeps M7 text interpretation independent from playback.
 - Speaker recognition is a separate future sidecar, not part of the realtime-translate route.
 
 ---
@@ -85,7 +85,7 @@ Completion requires a real installed `/Applications/MeetingTranslator.app` run o
 
 - Do not use Whisper as the translation model.
 - Do not use `gpt-realtime-2` for the default interpreter MVP.
-- Do not enable translated audio playback in M7. M8 is specified separately in `docs/prd_feat_realtime_translated_audio_playback.md` and requires feedback-safety proof before playback can ship.
+- Do not make M7 subtitles depend on translated audio playback. M8 is specified separately in `docs/prd_feat_realtime_translated_audio_playback.md` and requires explicit opt-in plus feedback-safety proof before playback can be enabled.
 - Do not add tool calls, summaries, assistant actions, or meeting controls.
 - Do not implement speaker diarization in this M7 PRD.
 - Do not mix microphone and system audio into one translation stream unless source identity is still proven.
@@ -130,17 +130,17 @@ Acceptance criteria:
 - [x] Interpreter-session-off never starts `gpt-realtime-translate`.
 - [x] Turning any gate off during recording restarts or downgrades the route safely.
 
-### US-M7-004: Translated Audio Is Honest
+### US-M7-004: Translated Audio Is Honest And Separate
 
-As a user, I should not see a translated-audio option that looks usable if it can feed back into the meeting.
+As a user, I should get same-time translated subtitles even when translated audio is off, and any later audio option should be governed by its own safety gates.
 
 Acceptance criteria:
 
-- [x] Translated audio playback remains disabled in UI.
-- [x] Runtime forces translated audio playback off even if an old saved preference says true.
-- [x] `session.output_audio.delta` is ignored unless a future PRD explicitly enables safe playback.
-- [x] Settings copy says text interpretation is available, audio playback is not yet meeting-room safe.
-- [x] Future playback scope is split into `docs/prd_feat_realtime_translated_audio_playback.md` so M7 remains text-first and auditable.
+- [x] M7 text subtitles work without translated audio playback.
+- [x] Runtime forces translated audio playback off unless the separate M8 gate explicitly enables safe playback.
+- [x] `session.output_audio.delta` is ignored unless M8 safe playback is enabled.
+- [x] Settings copy says text interpretation is available, audio playback is safe-preview only, and room-speaker safety is not claimed.
+- [x] Playback scope is split into `docs/prd_feat_realtime_translated_audio_playback.md` so M7 remains text-first and auditable.
 
 ### US-M7-005: Runtime Recovery Does Not Lie
 
@@ -179,7 +179,7 @@ If this invariant is false, the realtime route must remain caption-first, not tr
 - use `gpt-realtime-translate`;
 - send 24 kHz PCM16 audio chunks with source identity preserved by the coordinator;
 - parse translated text deltas and finals;
-- parse translated audio events but suppress playback by default;
+- parse translated audio events but suppress playback unless the separate M8 safe-preview gate is active;
 - expose route state and recoverable errors through app-level events;
 - never call assistant-style `response.create` for translation.
 
@@ -234,7 +234,7 @@ When `OpenAI Realtime (Recommended)` is selected, Settings must show:
 - pinned input-language requirement;
 - automatic fallback;
 - `Follow latest captions`;
-- disabled translated audio playback;
+- off-by-default M8 translated audio safe-preview controls, governed by `docs/prd_feat_realtime_translated_audio_playback.md`;
 - audio input filter/noise gate outside engine controls.
 
 Settings must not show legacy fast/stitch intervals in the Realtime panel. Those belong under `OpenAI Whisper + GPT`.
@@ -389,7 +389,7 @@ Completion requires at least one installed-app path:
    - status says live interpretation active;
    - translated text appears before utterance end;
    - source caption and translation attach to one row;
-   - no translated audio playback;
+- translated audio playback remains off unless the separate M8 safe-preview gate is explicitly enabled;
    - cost increases on Translate lane.
 
 If full installed-app UI automation is unsafe or unavailable, document the blocker and run the strongest safe substitute: Swift app-level synthetic E2E plus provider probes plus screenshot or runtime inspection.
@@ -417,7 +417,7 @@ This PRD is complete only when:
 - [x] Interpreter route starts only under explicit gates.
 - [x] Translated partial text appears during a long utterance before speech ends.
 - [x] Source and translated text attach to the same row in both source-first and output-first event order.
-- [x] Translated audio playback is disabled in UI and runtime.
+- [x] Translated audio playback is separate from M7 subtitles and remains off unless the M8 safe-preview gate is explicitly enabled.
 - [x] Settings no longer misleads users with legacy Whisper + GPT controls in the Realtime section.
 - [x] Cost tracking separates caption and translation lanes.
 - [x] Core smoke, app synthetic E2E, provider probes, build, and installed-app verification pass.
@@ -446,3 +446,4 @@ Stop and report before continuing if:
 |---|---:|---|
 | 2026-05-13 | 1.0 | Canonical goal-ready PRD for true `gpt-realtime-translate` simultaneous interpretation; defines Whisper as source-caption sidecar only. |
 | 2026-05-13 | 1.1 | Recorded full synthetic provider verification for Whisper captions, Translate EN->ZH/ZH->EN/code-switch output, and Realtime-2 agent text; no private audio used. |
+| 2026-05-13 | 1.2 | Clarified that M8 safe-preview playback supersedes the old M7 "audio disabled" wording without making text subtitles depend on playback. |
