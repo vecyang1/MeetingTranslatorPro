@@ -1,11 +1,11 @@
 ---
 name: managers
-description: "Skill for the Managers area of MeetingTranslatorPro. 99 symbols across 11 files."
+description: "Skill for the Managers area of MeetingTranslatorPro. 103 symbols across 11 files."
 ---
 
 # Managers
 
-99 symbols | 11 files | Cohesion: 74%
+103 symbols | 11 files | Cohesion: 75%
 
 ## When to Use
 
@@ -21,12 +21,12 @@ description: "Skill for the Managers area of MeetingTranslatorPro. 99 symbols ac
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, stopCapturing, drainRemainingAudio, configureChunking (+5) |
 | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+3) |
 | `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | configureChunking, startCapturing, processAudioData, flushAccumulatedAudio, restartChunkTimerIfCapturing (+3) |
+| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData, updateAPIKey |
 | `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
 | `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, createWAVData, updateAPIKey |
 | `Sources/MeetingTranslator/Services/TranslationService.swift` | translate, updateAPIKey |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | applyMergedFinal |
 | `Sources/MeetingTranslator/Views/ContentView.swift` | swapLanguages |
-| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | updateAPIKey |
 
 ## Entry Points
 
@@ -35,8 +35,8 @@ Start here when exploring this area:
 - **`transcribe`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:30`
 - **`createWAVData`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:171`
 - **`translate`** (Function) — `Sources/MeetingTranslator/Services/TranslationService.swift:26`
-- **`logWhisperTranscription`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:62`
-- **`logGPTTranslation`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:68`
+- **`transcribeAndTranslate`** (Function) — `Sources/MeetingTranslator/Services/GeminiFlashService.swift:28`
+- **`buildRequestBody`** (Function) — `Sources/MeetingTranslator/Services/GeminiFlashService.swift:91`
 
 ## Key Symbols
 
@@ -45,6 +45,10 @@ Start here when exploring this area:
 | `transcribe` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 30 |
 | `createWAVData` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 171 |
 | `translate` | Function | `Sources/MeetingTranslator/Services/TranslationService.swift` | 26 |
+| `transcribeAndTranslate` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 28 |
+| `buildRequestBody` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 91 |
+| `buildTargetLangDescription` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 280 |
+| `createWAVData` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 289 |
 | `logWhisperTranscription` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 62 |
 | `logGPTTranslation` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 68 |
 | `logGeminiFlash` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 75 |
@@ -58,10 +62,6 @@ Start here when exploring this area:
 | `confirmRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 764 |
 | `removeRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 976 |
 | `removeRealtimeEntries` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 980 |
-| `shouldUseRealtimeTextTranslationFallback` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1009 |
-| `processFastLayer` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1373 |
-| `processOpenAIFast` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1407 |
-| `processStitchLayerWithData` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1488 |
 
 ## Execution Flows
 
@@ -83,7 +83,7 @@ Start here when exploring this area:
 | Area | Connections |
 |------|-------------|
 | OpenAIRealtime | 9 calls |
-| Services | 7 calls |
+| Services | 6 calls |
 | Realtime-foundation | 2 calls |
 | Models | 1 calls |
 
