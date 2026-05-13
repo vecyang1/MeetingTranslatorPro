@@ -1,11 +1,11 @@
 ---
 name: realtime-foundation
-description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 40 symbols across 3 files."
+description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 39 symbols across 3 files."
 ---
 
 # Realtime-foundation
 
-40 symbols | 3 files | Cohesion: 89%
+39 symbols | 3 files | Cohesion: 89%
 
 ## When to Use
 
@@ -19,7 +19,7 @@ description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 40
 |------|---------|
 | `tools/realtime-foundation/realtime_foundation.py` | settimeout, connect, recv, _read_until_headers_complete, _read_frame (+23) |
 | `tools/realtime-foundation/generate_app_icon.py` | lerp, mix, add_gradient, rounded_mask, layer_shadow (+5) |
-| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | sendSetupAndWait, sendAudio |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | sendSetupAndWait |
 
 ## Entry Points
 
@@ -45,16 +45,16 @@ Start here when exploring this area:
 | `draw_translation_badge` | Function | `tools/realtime-foundation/generate_app_icon.py` | 98 |
 | `draw_source_bubble` | Function | `tools/realtime-foundation/generate_app_icon.py` | 113 |
 | `main` | Function | `tools/realtime-foundation/generate_app_icon.py` | 127 |
-| `sendSetupAndWait` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 124 |
-| `sendAudio` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 191 |
 | `extract_agent_probe_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 261 |
 | `extract_agent_probe_item_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 286 |
 | `create_probe_websocket` | Function | `tools/realtime-foundation/realtime_foundation.py` | 472 |
 | `websocket_audio_probe` | Function | `tools/realtime-foundation/realtime_foundation.py` | 482 |
 | `wait_for_session_updated` | Function | `tools/realtime-foundation/realtime_foundation.py` | 775 |
+| `sendSetupAndWait` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 124 |
 | `load_openai_key` | Function | `tools/realtime-foundation/realtime_foundation.py` | 70 |
 | `curl_json` | Function | `tools/realtime-foundation/realtime_foundation.py` | 84 |
 | `probe_model_lookup` | Function | `tools/realtime-foundation/realtime_foundation.py` | 183 |
+| `command_probe` | Function | `tools/realtime-foundation/realtime_foundation.py` | 794 |
 
 ## Execution Flows
 

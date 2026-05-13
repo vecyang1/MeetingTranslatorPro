@@ -5,7 +5,7 @@ description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 84 symb
 
 # OpenAIRealtime
 
-84 symbols | 14 files | Cohesion: 81%
+84 symbols | 14 files | Cohesion: 83%
 
 ## When to Use
 
@@ -18,14 +18,14 @@ description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 84 symb
 | File | Symbols |
 |------|---------|
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | canMerge, shouldDropUnstableShortFragment, mergedText, canDropNoNewContent, consolidateFinalEntries (+12) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift` | connect, disconnect, sendJSON, processServerEvent, handleDisconnectError (+6) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | connect, sendSessionUpdate, processServerEvent, finalTranscriptSegments, eventItemID (+4) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | connect, commitAudio, sendSessionUpdate, processServerEvent, rotateTurnIDIfFallbackID (+3) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift` | reduce, expirePartials, updateItem, reducedEntry, key (+3) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift` | OpenAIRealtimeWebSocketService, connect, disconnect, sendJSON, processServerEvent (+6) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | OpenAIRealtimeAgentService, connect, sendSessionUpdate, processServerEvent, finalTranscriptSegments (+4) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift` | reset, reduce, expirePartials, updateItem, reducedEntry (+3) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | OpenAIRealtimeTranscriptionService, connect, commitAudio, sendSessionUpdate, processServerEvent (+3) |
 | `Sources/MeetingTranslator/Managers/AppState.swift` | realtimeMergeCandidate, consolidateRecentRealtimeUtterances, mergeTranslations, scheduleOpenAIRealtimeRecoveryIfNeeded, restartOpenAIRealtimeAfterRecoverableError (+1) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift` | expirePartials, start, stop, wire, sendAudio (+1) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift` | start, stop, wire, expirePartials, sendAudio (+1) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | OpenAIRealtimeTranslationService, connect, processServerEvent, rotateTurnIDIfFallbackID, sendAudio |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | reset, contextualizedAudio, tailData, updateTail, reset |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | connect, processServerEvent, rotateTurnIDIfFallbackID, sendAudio, OpenAIRealtimeTranslationService |
 | `tools/realtime-foundation/tests/realtime_app_e2e.swift` | apply, runSyntheticCaptionE2E, runSyntheticTranslationE2E |
 
 ## Entry Points
@@ -61,7 +61,7 @@ Start here when exploring this area:
 | `endsWithTerminalPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 324 |
 | `isLeadingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 348 |
 | `isTrailingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 352 |
-| `reset` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 95 |
+| `apply` | Function | `tools/realtime-foundation/tests/realtime_app_e2e.swift` | 9 |
 
 ## Execution Flows
 

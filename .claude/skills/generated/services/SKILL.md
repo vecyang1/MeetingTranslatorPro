@@ -1,11 +1,11 @@
 ---
 name: services
-description: "Skill for the Services area of MeetingTranslatorPro. 18 symbols across 5 files."
+description: "Skill for the Services area of MeetingTranslatorPro. 22 symbols across 5 files."
 ---
 
 # Services
 
-18 symbols | 5 files | Cohesion: 77%
+22 symbols | 5 files | Cohesion: 75%
 
 ## When to Use
 
@@ -17,9 +17,9 @@ description: "Skill for the Services area of MeetingTranslatorPro. 18 symbols ac
 
 | File | Symbols |
 |------|---------|
+| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData, performRequest (+3) |
 | `Sources/MeetingTranslator/Services/CostTracker.swift` | logGeminiLive, logOpenAIRealtimeWhisper, logOpenAIRealtimeTranslate, logOpenAIRealtimeAgent, addEntry |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | whisperCost, translateCost, realtime2Cost, presented |
-| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | performRequest, parseResultJSON, extractResult, isRepeatedCharacterHallucination |
 | `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribeWAV, performRequest, appendFormField |
 | `Sources/MeetingTranslator/Managers/AppState.swift` | setupOpenAIRealtimeCallbacks, handleOpenAIRealtimeEvent |
 
@@ -48,13 +48,15 @@ Start here when exploring this area:
 | `translateCost` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 22 |
 | `realtime2Cost` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 26 |
 | `presented` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 163 |
+| `transcribeAndTranslate` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 28 |
+| `buildRequestBody` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 91 |
+| `buildTargetLangDescription` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 280 |
+| `createWAVData` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 289 |
 | `performRequest` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 185 |
 | `parseResultJSON` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 224 |
 | `extractResult` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 248 |
 | `isRepeatedCharacterHallucination` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 263 |
 | `transcribeWAV` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 37 |
-| `performRequest` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 90 |
-| `appendFormField` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 164 |
 
 ## Execution Flows
 
