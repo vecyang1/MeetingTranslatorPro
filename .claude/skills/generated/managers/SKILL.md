@@ -1,11 +1,11 @@
 ---
 name: managers
-description: "Skill for the Managers area of MeetingTranslatorPro. 93 symbols across 11 files."
+description: "Skill for the Managers area of MeetingTranslatorPro. 99 symbols across 11 files."
 ---
 
 # Managers
 
-93 symbols | 11 files | Cohesion: 71%
+99 symbols | 11 files | Cohesion: 74%
 
 ## When to Use
 
@@ -19,13 +19,13 @@ description: "Skill for the Managers area of MeetingTranslatorPro. 93 symbols ac
 |------|---------|
 | `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+55) |
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, stopCapturing, drainRemainingAudio, configureChunking (+5) |
-| `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | configureChunking, startCapturing, processAudioData, flushAccumulatedAudio, restartChunkTimerIfCapturing (+4) |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+3) |
+| `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | configureChunking, startCapturing, processAudioData, flushAccumulatedAudio, restartChunkTimerIfCapturing (+3) |
 | `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
 | `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, createWAVData, updateAPIKey |
 | `Sources/MeetingTranslator/Services/TranslationService.swift` | translate, updateAPIKey |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | applyMergedFinal |
 | `Sources/MeetingTranslator/Views/ContentView.swift` | swapLanguages |
-| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateAPIKey |
 | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | updateAPIKey |
 
 ## Entry Points
@@ -82,9 +82,9 @@ Start here when exploring this area:
 
 | Area | Connections |
 |------|-------------|
-| Services | 12 calls |
 | OpenAIRealtime | 9 calls |
-| Realtime-foundation | 1 calls |
+| Services | 7 calls |
+| Realtime-foundation | 2 calls |
 | Models | 1 calls |
 
 ## How to Explore
