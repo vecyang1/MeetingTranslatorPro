@@ -5,16 +5,20 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
+import secrets
 import ssl
+import socket
+import struct
 import subprocess
 import sys
 import time
-import warnings
 import wave
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 MODEL_ROUTES: dict[str, dict[str, str]] = {
     "transcription": {
@@ -189,10 +193,6 @@ def probe_model_lookup(mode: str, key: str) -> int:
 
 
 def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.0) -> bytes:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
-        import audioop
-
     with wave.open(str(path), "rb") as wav:
         channels = wav.getnchannels()
         width = wav.getsampwidth()
@@ -200,13 +200,63 @@ def load_wav_pcm16(path: Path, target_rate: int = 24000, max_seconds: float = 4.
         frame_count = min(wav.getnframes(), int(rate * max_seconds))
         pcm = wav.readframes(frame_count)
 
-    if width != 2:
-        pcm = audioop.lin2lin(pcm, width, 2)
-    if channels != 1:
-        pcm = audioop.tomono(pcm, 2, 0.5, 0.5)
+    if channels == 1 and width == 2 and rate == target_rate:
+        return pcm
+
+    samples = decode_wav_samples(pcm, width, channels)
     if rate != target_rate:
-        pcm, _ = audioop.ratecv(pcm, 2, 1, rate, target_rate, None)
-    return pcm
+        samples = resample_pcm16_samples(samples, rate, target_rate)
+    output = bytearray()
+    for sample in samples:
+        output.extend(clamp_pcm16(sample).to_bytes(2, "little", signed=True))
+    return bytes(output)
+
+
+def decode_wav_samples(pcm: bytes, width: int, channels: int) -> list[int]:
+    if width not in {1, 2, 3, 4}:
+        raise ValueError(f"unsupported WAV sample width: {width}")
+    if channels <= 0:
+        raise ValueError(f"unsupported WAV channel count: {channels}")
+
+    frame_size = width * channels
+    samples: list[int] = []
+    for frame_start in range(0, len(pcm) - frame_size + 1, frame_size):
+        channel_values: list[int] = []
+        for channel_index in range(channels):
+            start = frame_start + channel_index * width
+            raw = pcm[start : start + width]
+            if width == 1:
+                value = (raw[0] - 128) << 8
+            elif width == 2:
+                value = int.from_bytes(raw, "little", signed=True)
+            elif width == 3:
+                sign = b"\xff" if raw[2] & 0x80 else b"\x00"
+                value = int.from_bytes(raw + sign, "little", signed=True) >> 8
+            else:
+                value = int.from_bytes(raw, "little", signed=True) >> 16
+            channel_values.append(value)
+        samples.append(clamp_pcm16(round(sum(channel_values) / len(channel_values))))
+    return samples
+
+
+def resample_pcm16_samples(samples: list[int], source_rate: int, target_rate: int) -> list[int]:
+    if not samples or source_rate <= 0 or target_rate <= 0 or source_rate == target_rate:
+        return samples
+    output_count = max(1, round(len(samples) * target_rate / source_rate))
+    step = source_rate / target_rate
+    output: list[int] = []
+    for index in range(output_count):
+        position = index * step
+        left = int(position)
+        right = min(left + 1, len(samples) - 1)
+        fraction = position - left
+        output.append(clamp_pcm16(round(samples[left] * (1.0 - fraction) + samples[right] * fraction)))
+    return output
+
+
+def clamp_pcm16(value: int) -> int:
+    return max(-32768, min(32767, value))
+
 
 
 def extract_agent_probe_text(event: dict[str, Any]) -> str:
@@ -249,6 +299,187 @@ def extract_agent_probe_item_text(item: dict[str, Any]) -> str:
     return text.strip() if isinstance(text, str) else ""
 
 
+class WebSocketTimeoutException(TimeoutError):
+    """Compatibility timeout name used by websocket-client and the stdlib fallback."""
+
+
+class StdlibWebSocket:
+    """Small RFC 6455 client for local provider probes without third-party packages."""
+
+    def __init__(self, ssl_options: dict[str, Any]) -> None:
+        self.ssl_options = ssl_options
+        self.timeout: float | None = None
+        self.sock: socket.socket | None = None
+        self._fragmented_text: list[bytes] = []
+
+    def settimeout(self, timeout: float) -> None:
+        self.timeout = timeout
+        if self.sock:
+            self.sock.settimeout(timeout)
+
+    def connect(self, url: str, header: list[str] | None = None) -> None:
+        parsed = urlparse(url)
+        if parsed.scheme not in {"ws", "wss"} or not parsed.hostname:
+            raise ValueError(f"unsupported WebSocket URL: {url}")
+        port = parsed.port or (443 if parsed.scheme == "wss" else 80)
+        host_header = parsed.hostname if parsed.port in (None, 443, 80) else f"{parsed.hostname}:{port}"
+        path = parsed.path or "/"
+        if parsed.query:
+            path = f"{path}?{parsed.query}"
+
+        raw_sock = socket.create_connection((parsed.hostname, port), timeout=self.timeout)
+        if parsed.scheme == "wss":
+            ca_certs = self.ssl_options.get("ca_certs")
+            context = ssl.create_default_context(cafile=ca_certs) if ca_certs else ssl.create_default_context()
+            if self.ssl_options.get("cert_reqs") == ssl.CERT_NONE:
+                context.check_hostname = False
+                context.verify_mode = ssl.CERT_NONE
+            self.sock = context.wrap_socket(raw_sock, server_hostname=parsed.hostname)
+        else:
+            self.sock = raw_sock
+        if self.timeout is not None:
+            self.sock.settimeout(self.timeout)
+
+        key = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
+        request_headers = [
+            f"GET {path} HTTP/1.1",
+            f"Host: {host_header}",
+            "Upgrade: websocket",
+            "Connection: Upgrade",
+            f"Sec-WebSocket-Key: {key}",
+            "Sec-WebSocket-Version: 13",
+        ]
+        request_headers.extend(header or [])
+        self.sock.sendall(("\r\n".join(request_headers) + "\r\n\r\n").encode("ascii"))
+
+        response = self._read_until_headers_complete()
+        status_line, _, header_blob = response.partition(b"\r\n")
+        if b" 101 " not in status_line:
+            raise RuntimeError(f"websocket handshake failed: {status_line.decode('utf-8', 'replace')}")
+
+        response_headers: dict[str, str] = {}
+        for line in header_blob.split(b"\r\n"):
+            if b":" not in line:
+                continue
+            name, value = line.split(b":", 1)
+            response_headers[name.decode("ascii", "ignore").lower()] = value.decode("ascii", "ignore").strip()
+        accept = response_headers.get("sec-websocket-accept")
+        expected = base64.b64encode(
+            hashlib.sha1((key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11").encode("ascii")).digest()
+        ).decode("ascii")
+        if accept != expected:
+            raise RuntimeError("websocket handshake failed: invalid Sec-WebSocket-Accept")
+
+    def send(self, message: str) -> None:
+        self._send_frame(0x1, message.encode("utf-8"))
+
+    def recv(self) -> str:
+        while True:
+            opcode, fin, payload = self._read_frame()
+            if opcode == 0x1:
+                if fin:
+                    return payload.decode("utf-8")
+                self._fragmented_text = [payload]
+                continue
+            if opcode == 0x0:
+                if not self._fragmented_text:
+                    continue
+                self._fragmented_text.append(payload)
+                if fin:
+                    message = b"".join(self._fragmented_text).decode("utf-8")
+                    self._fragmented_text = []
+                    return message
+                continue
+            if opcode == 0x8:
+                raise RuntimeError("websocket closed by server")
+            if opcode == 0x9:
+                self._send_frame(0xA, payload)
+                continue
+            if opcode == 0xA:
+                continue
+
+    def close(self) -> None:
+        if not self.sock:
+            return
+        try:
+            self._send_frame(0x8, b"")
+        except Exception:
+            pass
+        try:
+            self.sock.close()
+        finally:
+            self.sock = None
+
+    def _read_until_headers_complete(self) -> bytes:
+        chunks: list[bytes] = []
+        data = b""
+        while b"\r\n\r\n" not in data:
+            chunk = self._read_exact(1)
+            chunks.append(chunk)
+            data = b"".join(chunks)
+            if len(data) > 65536:
+                raise RuntimeError("websocket handshake response too large")
+        return data
+
+    def _read_frame(self) -> tuple[int, bool, bytes]:
+        header = self._read_exact(2)
+        first, second = header[0], header[1]
+        fin = bool(first & 0x80)
+        opcode = first & 0x0F
+        masked = bool(second & 0x80)
+        length = second & 0x7F
+        if length == 126:
+            length = struct.unpack("!H", self._read_exact(2))[0]
+        elif length == 127:
+            length = struct.unpack("!Q", self._read_exact(8))[0]
+        mask = self._read_exact(4) if masked else b""
+        payload = self._read_exact(length) if length else b""
+        if masked:
+            payload = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        return opcode, fin, payload
+
+    def _send_frame(self, opcode: int, payload: bytes) -> None:
+        if not self.sock:
+            raise RuntimeError("websocket is not connected")
+        first = 0x80 | opcode
+        mask = secrets.token_bytes(4)
+        length = len(payload)
+        if length <= 125:
+            header = bytes([first, 0x80 | length])
+        elif length <= 65535:
+            header = bytes([first, 0x80 | 126]) + struct.pack("!H", length)
+        else:
+            header = bytes([first, 0x80 | 127]) + struct.pack("!Q", length)
+        masked = bytes(byte ^ mask[index % 4] for index, byte in enumerate(payload))
+        self.sock.sendall(header + mask + masked)
+
+    def _read_exact(self, count: int) -> bytes:
+        if not self.sock:
+            raise RuntimeError("websocket is not connected")
+        chunks: list[bytes] = []
+        remaining = count
+        while remaining > 0:
+            try:
+                chunk = self.sock.recv(remaining)
+            except socket.timeout as exc:
+                raise WebSocketTimeoutException() from exc
+            if not chunk:
+                raise RuntimeError("websocket closed")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        return b"".join(chunks)
+
+
+def create_probe_websocket(ssl_options: dict[str, Any]) -> Any:
+    try:
+        import websocket
+
+        return websocket.WebSocket(sslopt=ssl_options)
+    except Exception:
+        print("websocket-client not available; using stdlib WebSocket probe transport")
+        return StdlibWebSocket(ssl_options)
+
+
 def websocket_audio_probe(
     mode: str,
     key: str,
@@ -258,12 +489,6 @@ def websocket_audio_probe(
     show_text: bool,
     max_audio_seconds: float,
 ) -> int:
-    try:
-        import websocket
-    except Exception:
-        print("audio probe needs the optional websocket-client Python package")
-        return 2
-
     pcm = load_wav_pcm16(audio_path, max_seconds=max_audio_seconds)
     if not pcm:
         print(f"{audio_path}: no PCM audio loaded")
@@ -285,7 +510,7 @@ def websocket_audio_probe(
     except ImportError:
         print("certifi not available; using platform default CA store for websocket probe")
 
-    ws = websocket.WebSocket(sslopt=ssl_options)
+    ws = create_probe_websocket(ssl_options)
     ws.settimeout(min(timeout, 10.0))
     try:
         ws.connect(
@@ -300,7 +525,7 @@ def websocket_audio_probe(
     try:
         if mode == "translation":
             caption_url = "wss://api.openai.com/v1/realtime?intent=transcription"
-            caption_ws = websocket.WebSocket(sslopt=ssl_options)
+            caption_ws = create_probe_websocket(ssl_options)
             caption_ws.settimeout(min(timeout, 10.0))
             try:
                 caption_ws.connect(

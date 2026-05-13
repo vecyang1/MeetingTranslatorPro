@@ -25,13 +25,14 @@
 - Fixed output-first translation rebinding so a temporary translation-only row is removed after the paired Whisper source-caption row arrives.
 - Fixed translation-mode status presentation so a later sidecar caption socket cannot downgrade the visible runtime state from translation active to captions active.
 - Fixed audio provider probe connection handling so TLS/WebSocket setup uses a real connect timeout and invalid keys report a clean session-update error instead of a traceback or premature timeout.
+- Fixed the provider probe harness so it can run on the login-shell Python without optional `websocket-client` or `audioop` dependencies.
 
 ### Verified
 
 - Local smokes currently pass for realtime core, synthetic realtime app E2E, Settings copy, Settings input-filter placement, transcript follow behavior, language detection, app-logo UI, app-icon visual checks, and `./build_app.sh`.
 - Installed `/Applications/MeetingTranslator.app` launches with bundle id `com.meetingtranslator.app`, version `1.0.0`, and the expected Apple Development signature; installed binary strings include the new realtime Settings sections.
 - GitNexus `detect_changes` was reviewed for the full diff and reports critical risk in the expected realtime/AppState/routing/reducer/cost flows.
-- OpenAI provider probes are blocked until a valid `OPENAI_API_KEY` is installed; generated synthetic audio probes now reach session setup and fail with the saved placeholder key's invalid-key error, which must not be used as completion proof.
+- Full realtime mission verification passes with generated synthetic audio: `gpt-realtime-whisper` source transcript deltas, `gpt-realtime-translate` EN->ZH, `gpt-realtime-translate` ZH->EN, `gpt-realtime-translate` code-switch, and `gpt-realtime-2` agent text output.
 
 ## 2026-05-12
 

@@ -27,7 +27,7 @@ Start here when exploring this area:
 
 - **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Views/ContentView.swift:611`
 - **`exportLog`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:139`
-- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1219`
+- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1250`
 
 ## Key Symbols
 
@@ -35,7 +35,7 @@ Start here when exploring this area:
 |--------|------|------|------|
 | `exportTranscript` | Function | `Sources/MeetingTranslator/Views/ContentView.swift` | 611 |
 | `exportLog` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 139 |
-| `exportTranscript` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1219 |
+| `exportTranscript` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1250 |
 
 ## Execution Flows
 

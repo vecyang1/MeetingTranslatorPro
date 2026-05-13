@@ -1,11 +1,11 @@
 ---
 name: realtime-foundation
-description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 25 symbols across 2 files."
+description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 40 symbols across 3 files."
 ---
 
 # Realtime-foundation
 
-25 symbols | 2 files | Cohesion: 95%
+40 symbols | 3 files | Cohesion: 89%
 
 ## When to Use
 
@@ -17,8 +17,9 @@ description: "Skill for the Realtime-foundation area of MeetingTranslatorPro. 25
 
 | File | Symbols |
 |------|---------|
-| `tools/realtime-foundation/realtime_foundation.py` | load_wav_pcm16, extract_agent_probe_text, extract_agent_probe_item_text, websocket_audio_probe, wait_for_session_updated (+10) |
+| `tools/realtime-foundation/realtime_foundation.py` | settimeout, connect, recv, _read_until_headers_complete, _read_frame (+23) |
 | `tools/realtime-foundation/generate_app_icon.py` | lerp, mix, add_gradient, rounded_mask, layer_shadow (+5) |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | sendSetupAndWait, sendAudio |
 
 ## Entry Points
 
@@ -44,27 +45,31 @@ Start here when exploring this area:
 | `draw_translation_badge` | Function | `tools/realtime-foundation/generate_app_icon.py` | 98 |
 | `draw_source_bubble` | Function | `tools/realtime-foundation/generate_app_icon.py` | 113 |
 | `main` | Function | `tools/realtime-foundation/generate_app_icon.py` | 127 |
-| `load_wav_pcm16` | Function | `tools/realtime-foundation/realtime_foundation.py` | 183 |
-| `extract_agent_probe_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 204 |
-| `extract_agent_probe_item_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 229 |
-| `websocket_audio_probe` | Function | `tools/realtime-foundation/realtime_foundation.py` | 244 |
-| `wait_for_session_updated` | Function | `tools/realtime-foundation/realtime_foundation.py` | 532 |
-| `load_openai_key` | Function | `tools/realtime-foundation/realtime_foundation.py` | 66 |
-| `curl_json` | Function | `tools/realtime-foundation/realtime_foundation.py` | 80 |
-| `probe_model_lookup` | Function | `tools/realtime-foundation/realtime_foundation.py` | 172 |
-| `command_probe` | Function | `tools/realtime-foundation/realtime_foundation.py` | 551 |
-| `print_model_table` | Function | `tools/realtime-foundation/realtime_foundation.py` | 110 |
+| `sendSetupAndWait` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 124 |
+| `sendAudio` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 191 |
+| `extract_agent_probe_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 261 |
+| `extract_agent_probe_item_text` | Function | `tools/realtime-foundation/realtime_foundation.py` | 286 |
+| `create_probe_websocket` | Function | `tools/realtime-foundation/realtime_foundation.py` | 472 |
+| `websocket_audio_probe` | Function | `tools/realtime-foundation/realtime_foundation.py` | 482 |
+| `wait_for_session_updated` | Function | `tools/realtime-foundation/realtime_foundation.py` | 775 |
+| `load_openai_key` | Function | `tools/realtime-foundation/realtime_foundation.py` | 70 |
+| `curl_json` | Function | `tools/realtime-foundation/realtime_foundation.py` | 84 |
+| `probe_model_lookup` | Function | `tools/realtime-foundation/realtime_foundation.py` | 183 |
 
 ## Execution Flows
 
 | Flow | Type | Steps |
 |------|------|-------|
+| `SetupBindings → _send_frame` | cross_community | 7 |
+| `UpdateTargetLanguage → _send_frame` | cross_community | 6 |
+| `Command_probe → Clamp_pcm16` | cross_community | 5 |
+| `Connect → _read_frame` | intra_community | 5 |
+| `Connect → _send_frame` | cross_community | 5 |
+| `Connect → _send_frame` | cross_community | 5 |
+| `Connect → _send_frame` | cross_community | 5 |
+| `SendAudio → _send_frame` | cross_community | 4 |
 | `Main → Lerp` | intra_community | 4 |
-| `Command_probe → Extract_agent_probe_item_text` | cross_community | 4 |
-| `Main → Layer_shadow` | intra_community | 3 |
-| `Command_probe → Curl_json` | intra_community | 3 |
-| `Command_probe → Load_wav_pcm16` | cross_community | 3 |
-| `Command_probe → Wait_for_session_updated` | cross_community | 3 |
+| `SendAudio → _send_frame` | cross_community | 4 |
 
 ## How to Explore
 

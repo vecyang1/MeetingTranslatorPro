@@ -162,7 +162,7 @@ Realtime work is now split into explicit feature PRDs so future agents do not bl
 | PRD | Status | Product boundary |
 |---|---|---|
 | `docs/prd_feat_openai_realtime_caption_delta_first.md` | Implemented/hardening | `gpt-realtime-whisper` source captions while speech is still arriving. |
-| `docs/prd_feat_openai_realtime_translate_interpreter.md` | Implemented locally / provider probe pending valid key | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
+| `docs/prd_feat_openai_realtime_translate_interpreter.md` | Implemented and provider-verified | Same-time translated subtitles with `gpt-realtime-translate`; Whisper is only a source-caption audit sidecar. |
 | `docs/prd_feat_realtime_settings_runtime_clarity.md` | Implemented locally | Settings panel reflects actual Realtime runtime controls and hides legacy Whisper + GPT timing under Realtime. |
 | `docs/prd_feat_realtime_speaker_recognition_sidecar.md` | Implemented as off-by-default delayed sidecar foundation | Optional delayed speaker labels through a diarization sidecar; not part of realtime translation core. |
 | `docs/prd_feat_openai_realtime_translation_next_stage.md` | Historical/superseded | Retained for earlier probe notes only; do not use as completion proof. |
@@ -321,3 +321,4 @@ The following are explicitly out of scope for the current version:
 | 2026-05-10 | 2.2 | Added OpenAI Realtime foundation: skill/CLI, native Swift services, gated translation sessions, and runtime probes |
 | 2026-05-13 | 2.3 | Added canonical Realtime Translate interpreter PRD, Settings clarity PRD, and delayed speaker-recognition sidecar PRD. |
 | 2026-05-13 | 2.4 | Implemented local M7 route gates, output-first row cleanup, split Realtime Settings sections, and off-by-default delayed speaker-label metadata/matching. |
+| 2026-05-13 | 2.5 | Verified the full realtime mission runner with synthetic `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` provider probes; hardened the probe harness to avoid optional Python WebSocket/audio dependencies. |

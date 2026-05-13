@@ -66,10 +66,11 @@ Current canonical product PRDs:
 1. Refresh current OpenAI docs before model/API decisions.
 2. Run `tools/realtime-foundation/realtime-foundation models` and `recommend`; interpreter recommendations require `--pinned-source-language` and `--interpreter-session`.
 3. Probe model visibility with `probe --mode transcription`, `probe --mode translation`, and `probe --mode agent`.
-4. For native macOS/server raw audio, prefer WebSocket and 24 kHz PCM16 at the realtime service boundary.
-5. For browser/mobile audio, prefer WebRTC and ephemeral/client secrets.
-6. Keep protocol parsing inside `OpenAIRealtime*Service` files and reducer logic inside `RealtimeEventReducer`; keep `AppState` orchestration-only.
-7. Before claiming completion, run build, model probes, synthetic audio probes where possible, app launch, and safe runtime checks.
+4. For full provider proof, run `tools/realtime-foundation/run_realtime_mission_verification.sh` with generated fixtures and a valid transient `OPENAI_API_KEY`; this passed on 2026-05-13 for Whisper captions, Translate EN->ZH/ZH->EN/code-switch, and Realtime-2 agent text.
+5. For native macOS/server raw audio, prefer WebSocket and 24 kHz PCM16 at the realtime service boundary.
+6. For browser/mobile audio, prefer WebRTC and ephemeral/client secrets.
+7. Keep protocol parsing inside `OpenAIRealtime*Service` files and reducer logic inside `RealtimeEventReducer`; keep `AppState` orchestration-only.
+8. Before claiming completion, run build, model probes, synthetic audio probes where possible, app launch, and safe runtime checks.
 
 ## Read These References
 

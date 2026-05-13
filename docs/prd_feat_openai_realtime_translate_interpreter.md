@@ -365,10 +365,11 @@ Required language pairs:
 - one code-switching fixture;
 - one long utterance fixture that proves partial translated text before utterance end.
 
-2026-05-13 probe status: synthetic provider probes were attempted for `gpt-realtime-whisper`,
-`gpt-realtime-translate`, and `gpt-realtime-2`; all returned HTTP 401 for the saved placeholder
-key, so provider verification is blocked on a valid `OPENAI_API_KEY` and is not treated as
-completion proof.
+2026-05-13 probe status: synthetic provider probes passed with a transient valid
+`OPENAI_API_KEY` and generated macOS `say` fixtures. The passing run covered
+`gpt-realtime-whisper` source transcript deltas, `gpt-realtime-translate` English -> Chinese,
+`gpt-realtime-translate` Chinese -> English, `gpt-realtime-translate` code-switching audio, and
+`gpt-realtime-2` agent text output. No private meeting audio was used.
 
 ### 9.3 Installed-App E2E
 
@@ -418,7 +419,7 @@ This PRD is complete only when:
 - [x] Translated audio playback is disabled in UI and runtime.
 - [x] Settings no longer misleads users with legacy Whisper + GPT controls in the Realtime section.
 - [x] Cost tracking separates caption and translation lanes.
-- [x] Core smoke, app synthetic E2E, provider probes, build, and installed-app verification pass or blockers are documented.
+- [x] Core smoke, app synthetic E2E, provider probes, build, and installed-app verification pass.
 - [x] Docs and changelog are updated.
 - [x] GitNexus detect-changes is reviewed for unexpected symbol/flow changes.
 
@@ -443,3 +444,4 @@ Stop and report before continuing if:
 | Date | Version | Change |
 |---|---:|---|
 | 2026-05-13 | 1.0 | Canonical goal-ready PRD for true `gpt-realtime-translate` simultaneous interpretation; defines Whisper as source-caption sidecar only. |
+| 2026-05-13 | 1.1 | Recorded full synthetic provider verification for Whisper captions, Translate EN->ZH/ZH->EN/code-switch output, and Realtime-2 agent text; no private audio used. |
