@@ -246,7 +246,7 @@ OpenAI Realtime is the preferred new live path, but the app must keep the existi
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **MeetingTranslatorPro** (2542 symbols, 6030 relationships, 211 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **MeetingTranslatorPro** (2613 symbols, 6223 relationships, 217 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -284,10 +284,10 @@ This project is indexed by GitNexus as **MeetingTranslatorPro** (2542 symbols, 6
 | Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
 | Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
 | Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-| Work in the Managers area (125 symbols) | `.claude/skills/generated/managers/SKILL.md` |
-| Work in the OpenAIRealtime area (101 symbols) | `.claude/skills/generated/openairealtime/SKILL.md` |
+| Work in the Managers area (140 symbols) | `.claude/skills/generated/managers/SKILL.md` |
+| Work in the OpenAIRealtime area (86 symbols) | `.claude/skills/generated/openairealtime/SKILL.md` |
+| Work in the Services area (40 symbols) | `.claude/skills/generated/services/SKILL.md` |
 | Work in the Realtime-foundation area (40 symbols) | `.claude/skills/generated/realtime-foundation/SKILL.md` |
-| Work in the Services area (28 symbols) | `.claude/skills/generated/services/SKILL.md` |
 | Work in the Models area (8 symbols) | `.claude/skills/generated/models/SKILL.md` |
 | Work in the Views area (3 symbols) | `.claude/skills/generated/views/SKILL.md` |
 

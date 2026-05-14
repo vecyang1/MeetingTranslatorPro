@@ -25,17 +25,17 @@ description: "Skill for the Views area of MeetingTranslatorPro. 3 symbols across
 
 Start here when exploring this area:
 
-- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Views/ContentView.swift:650`
+- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Views/ContentView.swift:658`
 - **`exportLog`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:139`
-- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1504`
+- **`exportTranscript`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1551`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
-| `exportTranscript` | Function | `Sources/MeetingTranslator/Views/ContentView.swift` | 650 |
+| `exportTranscript` | Function | `Sources/MeetingTranslator/Views/ContentView.swift` | 658 |
 | `exportLog` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 139 |
-| `exportTranscript` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1504 |
+| `exportTranscript` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1551 |
 
 ## Execution Flows
 

@@ -1,11 +1,11 @@
 ---
 name: managers
-description: "Skill for the Managers area of MeetingTranslatorPro. 125 symbols across 15 files."
+description: "Skill for the Managers area of MeetingTranslatorPro. 140 symbols across 16 files."
 ---
 
 # Managers
 
-125 symbols | 15 files | Cohesion: 75%
+140 symbols | 16 files | Cohesion: 76%
 
 ## When to Use
 
@@ -17,16 +17,16 @@ description: "Skill for the Managers area of MeetingTranslatorPro. 125 symbols a
 
 | File | Symbols |
 |------|---------|
-| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+68) |
+| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+71) |
+| `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | refreshDevices, loadInputDevices, startCapturing, processAudioData, calculateEnergyDB (+9) |
 | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+4) |
-| `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | stopCapturing, configureChunking, restartChunkTimerIfCapturing, startCapturing, processAudioData (+4) |
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, configureChunking, flushAccumulatedAudio, restartChunkTimerIfCapturing (+2) |
 | `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, transcribeWAV, performRequest, appendFormField, createWAVData (+1) |
 | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData, updateAPIKey |
+| `Sources/MeetingTranslator/Models/AppSettings.swift` | resolvedDeviceID, selectedDevice, displayName, normalizedID, apply |
 | `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | setMuted, stop, setVolume |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeConnectionRecoveryPolicy.swift` | shouldRetry, retryDelayNanoseconds, isRecoverableNetworkError |
-| `Sources/MeetingTranslator/Services/TranslationService.swift` | translate, updateAPIKey |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | mayEnable, plan |
 
 ## Entry Points
 
@@ -56,12 +56,12 @@ Start here when exploring this area:
 | `logWhisperTranscription` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 62 |
 | `logGPTTranslation` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 68 |
 | `logGeminiFlash` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 75 |
-| `rmsEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 348 |
-| `hasEnoughEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 363 |
-| `isSameLanguage` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 370 |
-| `extractContext` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 377 |
-| `removeDuplicatePrefix` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 383 |
-| `trimEntriesIfNeeded` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 520 |
+| `rmsEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 350 |
+| `hasEnoughEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 365 |
+| `isSameLanguage` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 372 |
+| `extractContext` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 379 |
+| `removeDuplicatePrefix` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 385 |
+| `trimEntriesIfNeeded` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 525 |
 
 ## Execution Flows
 
@@ -82,8 +82,8 @@ Start here when exploring this area:
 
 | Area | Connections |
 |------|-------------|
-| OpenAIRealtime | 21 calls |
-| Services | 3 calls |
+| OpenAIRealtime | 12 calls |
+| Services | 8 calls |
 | Realtime-foundation | 2 calls |
 | Models | 1 calls |
 
