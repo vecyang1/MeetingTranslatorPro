@@ -133,4 +133,117 @@ struct AudioDevice: Identifiable, Hashable {
     let id: String
     let name: String
     let isDefault: Bool
+    let systemID: UInt32
+    let uid: String?
+}
+
+enum AudioInputDeviceSelection {
+    static func resolvedDeviceID(preferredID: String?, devices: [AudioDevice]) -> String? {
+        guard let preferredID,
+              devices.contains(where: { $0.id == preferredID }) else {
+            return nil
+        }
+        return preferredID
+    }
+
+    static func selectedDevice(preferredID: String?, devices: [AudioDevice]) -> AudioDevice? {
+        guard let resolvedID = resolvedDeviceID(preferredID: preferredID, devices: devices) else {
+            return nil
+        }
+        return devices.first { $0.id == resolvedID }
+    }
+
+    static func displayName(
+        preferredID: String?,
+        activeDevice: AudioDevice?,
+        devices: [AudioDevice]
+    ) -> String {
+        if let selected = selectedDevice(preferredID: preferredID, devices: devices) {
+            return selected.name
+        }
+        if let activeDevice {
+            return "System Default (\(activeDevice.name))"
+        }
+        if let defaultDevice = devices.first(where: { $0.isDefault }) {
+            return "System Default (\(defaultDevice.name))"
+        }
+        return "System Default"
+    }
+
+    static func shortDisplayName(_ displayName: String) -> String {
+        let replacements = [
+            "MacBook Pro Microphone": "Mac Mic",
+            "MacBook Air Microphone": "Mac Mic",
+            "System Default": "Default"
+        ]
+        var name = displayName
+        for (source, replacement) in replacements {
+            name = name.replacingOccurrences(of: source, with: replacement)
+        }
+        return name
+    }
+}
+
+struct MicrophoneInputDeviceSwitchResult: Equatable {
+    let selectedID: String?
+    let changed: Bool
+    let restartedCapture: Bool
+}
+
+enum MicrophoneInputDeviceSwitch {
+    static func normalizedID(_ id: String?) -> String? {
+        let trimmed = id?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+
+    static func apply(
+        currentID: String?,
+        requestedID: String?,
+        isRecording: Bool,
+        isMicEnabled: Bool,
+        setSelectedDevice: (String?) -> Void,
+        setPreferredDevice: (String?) -> Void,
+        persistSelection: () -> Void,
+        stopCapturing: (Bool) -> Void,
+        startCapturing: () throws -> Void
+    ) throws -> MicrophoneInputDeviceSwitchResult {
+        let current = normalizedID(currentID)
+        let next = normalizedID(requestedID)
+        guard current != next else {
+            return MicrophoneInputDeviceSwitchResult(
+                selectedID: current,
+                changed: false,
+                restartedCapture: false
+            )
+        }
+
+        setSelectedDevice(next)
+        setPreferredDevice(next)
+        persistSelection()
+
+        guard isRecording && isMicEnabled else {
+            return MicrophoneInputDeviceSwitchResult(
+                selectedID: next,
+                changed: true,
+                restartedCapture: false
+            )
+        }
+
+        stopCapturing(false)
+        do {
+            try startCapturing()
+        } catch {
+            setSelectedDevice(current)
+            setPreferredDevice(current)
+            persistSelection()
+            try? startCapturing()
+            throw error
+        }
+
+        return MicrophoneInputDeviceSwitchResult(
+            selectedID: next,
+            changed: true,
+            restartedCapture: true
+        )
+    }
 }

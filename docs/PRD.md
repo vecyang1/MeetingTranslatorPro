@@ -1,6 +1,6 @@
 # Product Requirements Document — Meeting Translator Pro
 
-**Version:** 2.6
+**Version:** 2.7
 **Last Updated:** 2026-05-14
 **Status:** Active Development
 **Platform:** macOS 14.0+ (Sonoma)
@@ -33,6 +33,8 @@ The app captures audio from two independent sources simultaneously:
 | System Audio | ScreenCaptureKit | Captures all system audio (meeting participants via Zoom, Teams, etc.) |
 
 Both sources produce 16-bit PCM audio at 16kHz mono, chunked at 1-second intervals and fed into the transcription pipeline.
+
+Microphone input is user-selectable. `System Default` follows the current macOS default input route, while named devices let users keep AirPods/headphones as translated-audio output and still capture their voice through the Mac microphone or another preferred input. The main control bar shows the active microphone input name during recording so users can immediately tell which microphone the app is listening to.
 
 ### 3.2 Multi-Engine Transcription
 
@@ -241,8 +243,8 @@ The UI follows a **glassmorphic design** using macOS vibrancy effects (`NSVisual
 
 1. **Title Bar:** App name, engine badge, status indicator, processing count, recording timer, session cost
 2. **Language Bar:** Input language selector (auto-detect or pinned) + output language selector + swap button
-3. **Transcription List:** Scrollable timeline of `TranscriptionRowView` cards, each showing timestamp, speaker badge, language tag, original text, and translation bubble. Live draft text updates without implicit layout animation, so grey interim text grows downward instead of visually vibrating the timeline.
-4. **Control Bar:** Start/Stop button, audio level indicators, follow-latest captions toggle, translation toggle, export button, clear button, entry count
+3. **Transcription List:** Scrollable timeline of `TranscriptionRowView` cards, each showing timestamp, speaker badge, language tag, original text, and translation bubble. Live draft text updates without implicit layout animation, so grey interim text grows downward instead of visually vibrating the timeline. In Realtime translation mode, source-side drafts are labeled `live caption`; rows waiting for Translate output say `Waiting for live translation...` to make clear this is the paired realtime interpreter path, not a second legacy translator.
+4. **Control Bar:** Start/Stop button, audio level indicators, active microphone input name, follow-latest captions toggle, translation toggle, translated-audio output control, export button, clear button, entry count
 
 ---
 
@@ -275,6 +277,7 @@ All user settings are stored in `UserDefaults` under the `com.meetingtranslator.
 | `com.meetingtranslator.geminiquality` | Double | 12.0 | Gemini quality pass interval |
 | `com.meetingtranslator.noisegate` | Double | 0.003 | Shared RMS input-filter threshold applied before all engine routes |
 | `com.meetingtranslator.inputlanguages` | [String] | [] | Expected input languages |
+| `com.meetingtranslator.microphone.inputdevice` | String? | nil | Optional selected microphone input device UID; nil follows the macOS system default input |
 | `com.meetingtranslator.realtime.captionlatency` | String | "Balanced" | OpenAI Realtime caption latency preset |
 | `com.meetingtranslator.realtime.reasoningeffort` | String | "low" | `gpt-realtime-2` effort setting; kept low for live caption latency |
 | `com.meetingtranslator.realtime.interpretersessionenabled` | Bool | false | Explicit M7 live interpreter session gate for `gpt-realtime-translate` |
@@ -330,3 +333,4 @@ The following are explicitly out of scope for the current version:
 | 2026-05-13 | 2.4 | Implemented local M7 route gates, output-first row cleanup, split Realtime Settings sections, and off-by-default delayed speaker-label metadata/matching. |
 | 2026-05-13 | 2.5 | Verified the full realtime mission runner with synthetic `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` provider probes; hardened the probe harness to avoid optional Python WebSocket/audio dependencies. |
 | 2026-05-14 | 2.6 | Added main-window headphones activation for M8 translated audio so users can confirm the current safe output route without confusing it with system-audio capture. |
+| 2026-05-14 | 2.7 | Added configurable microphone input and clearer realtime row status copy after AirPods output made the headset mic path ambiguous. |

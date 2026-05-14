@@ -4,6 +4,24 @@
 
 ### Added
 
+- Bumped the installed app version to `1.1.3` build `5` for the AirPods/microphone input follow-up.
+- Added a Settings `Mic Input` picker under `Audio Sources`, with `System Default` plus concrete input devices such as MacBook microphone, AirPods microphone, Loopback, and USB interfaces.
+- Added the active microphone input name to the main control bar, so users can tell whether the app is listening through the Mac microphone or the headset microphone while translated audio plays to headphones.
+- Added `microphone input device smoke` and `realtime row status copy smoke` to the local verification lane.
+
+### Changed
+
+- Realtime translation rows now label source-side drafts as `live caption` and pending translated text as `Waiting for live translation...`, making the `gpt-realtime-translate` + `gpt-realtime-whisper` sidecar architecture visible without implying a second legacy translator/TTS path.
+
+### Fixed
+
+- Fixed the AirPods workflow where macOS could switch both default output and default input to AirPods Max, causing the app to listen through the quieter headset microphone while the user expected the Mac microphone. Users can now keep AirPods as translated-audio output and select Mac microphone as input.
+- Switching microphone input while recording restarts only the microphone tap and clears stale buffered mic audio instead of flushing old audio into the realtime route.
+
+## 2026-05-14
+
+### Added
+
 - Bumped the installed app version to `1.1.2` build `4` for the translated-audio headphone activation UX fix.
 - Added a main-window translated-audio headphones control that is visible when the Realtime interpreter route is eligible, even before playback is enabled.
 - Added `enableRealtimeTranslatedAudioPlaybackFromCurrentRoute()` so one explicit click can bind the current headphone-like output route as the safe output and enable M8 playback without making the user hunt through Settings.

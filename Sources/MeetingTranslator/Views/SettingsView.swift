@@ -140,6 +140,7 @@ struct SettingsView: View {
                                 color: .green,
                                 isOn: $appState.isMicEnabled
                             )
+                            microphoneInputPicker
                             audioToggle(
                                 title: "System Audio",
                                 subtitle: "Capture meeting sounds",
@@ -269,6 +270,9 @@ struct SettingsView: View {
         }
         .frame(width: 500, height: 780)
         .background(VisualEffectBackground(material: .popover, blendingMode: .behindWindow))
+        .onAppear {
+            appState.micManager.refreshDevices()
+        }
     }
 
     // MARK: - Header
@@ -583,6 +587,61 @@ struct SettingsView: View {
             Toggle("Automatic fallback to Whisper + GPT", isOn: $appState.realtimeAutomaticFallback)
                 .font(.system(size: 12, weight: .medium))
         }
+    }
+
+    private var microphoneInputPicker: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(systemName: "mic.badge.plus")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.green)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mic Input")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Choose Mac mic when AirPods output makes the headset mic too quiet.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer()
+
+                Menu {
+                    Button("System Default") {
+                        appState.setMicrophoneInputDevice(nil)
+                    }
+                    if !appState.micManager.availableDevices.isEmpty {
+                        Divider()
+                    }
+                    ForEach(appState.micManager.availableDevices) { device in
+                        Button(device.name + (device.isDefault ? " (Default)" : "")) {
+                            appState.setMicrophoneInputDevice(device.id)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(appState.microphoneInputDisplayName)
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .frame(maxWidth: 180, alignment: .trailing)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.primary.opacity(0.06))
+                    )
+                }
+                .menuStyle(.borderlessButton)
+            }
+        }
+        .opacity(appState.isMicEnabled ? 1 : 0.45)
+        .disabled(!appState.isMicEnabled)
     }
 
     private var liveInterpretationSettings: some View {

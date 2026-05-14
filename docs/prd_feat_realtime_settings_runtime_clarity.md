@@ -1,6 +1,6 @@
 # PRD: Realtime Settings and Runtime Clarity
 
-**Version:** 1.0
+**Version:** 1.2
 **Date:** 2026-05-13
 **Status:** Implemented locally; updated for M8 safe playback controls
 **Stage:** M7 support plus M8 safe-preview playback settings
@@ -17,10 +17,11 @@ For `OpenAI Realtime (Recommended)`, the panel should answer six questions:
 
 1. What audio is captured?
 2. How sensitive is the shared input filter?
-3. What live caption latency do I want?
-4. Am I running live interpretation, and are all prerequisites met?
-5. Is translated audio available as a safe-preview output?
-6. Should the timeline follow new captions?
+3. Which microphone input is actually used when headphones are connected?
+4. What live caption latency do I want?
+5. Am I running live interpretation, and are all prerequisites met?
+6. Is translated audio available as a safe-preview output?
+7. Should the timeline follow new captions?
 
 Legacy Whisper + GPT timing controls must live only under the legacy fallback engine. They do not configure `gpt-realtime-whisper` or `gpt-realtime-translate`.
 
@@ -123,13 +124,17 @@ Acceptance criteria:
 Preferred Settings order:
 
 1. API Keys and Engine
-2. Capture Sources
+2. Capture Sources, including a `Mic Input` picker with `System Default` plus named CoreAudio input devices
 3. Audio Input Filter
 4. Realtime Captions
 5. Live Interpretation
 6. Display Behavior
 7. API Cost Tracking
 8. Legacy Engine Controls, shown only for selected fallback engines
+
+### FR-SET-001A: Microphone Input Picker
+
+Show a compact `Mic Input` control under capture sources for every engine, not under Realtime-specific controls. `System Default` follows macOS default input; named devices let users keep AirPods/headphones as output while choosing Mac microphone or another input. If changed during recording, the app restarts only microphone capture and must not flush stale audio from the old input route.
 
 ### FR-SET-002: Realtime Captions Section
 
@@ -248,3 +253,4 @@ Required smoke tests:
 |---|---:|---|
 | 2026-05-13 | 1.0 | Goal-ready Settings PRD aligned to Realtime Translate interpreter route. |
 | 2026-05-13 | 1.1 | Updated Settings contract for M8 safe-preview translated audio controls after implementation replaced the old "coming later" row. |
+| 2026-05-14 | 1.2 | Added the Mic Input picker requirement after AirPods output testing exposed ambiguous headset-vs-Mac microphone capture. |

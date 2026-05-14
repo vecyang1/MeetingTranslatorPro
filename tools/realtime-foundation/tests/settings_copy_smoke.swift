@@ -25,6 +25,8 @@ struct SettingsCopySmoke {
         precondition(settings.contains("settingsSection(title: \"Audio Input Filter\""))
         precondition(settings.contains("settingsSection(title: \"Legacy Fallback Controls\""))
         precondition(settings.contains("Done saves persistent settings"))
+        precondition(settings.contains("Mic Input"))
+        precondition(settings.contains("Choose Mac mic when AirPods output makes the headset mic too quiet."))
         precondition(settings.contains("Translated Audio"))
         precondition(settings.contains("Uses gpt-realtime-translate output audio"))
         precondition(settings.contains("Speaker/display output is blocked while the microphone is on"))

@@ -5,6 +5,7 @@ struct TranscriptionRowView: View {
     let entry: TranscriptionEntry
     let showTranslation: Bool
     let targetLanguage: SupportedLanguage
+    let realtimeMode: RealtimeRouteMode?
 
     private let timeFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -43,7 +44,7 @@ struct TranscriptionRowView: View {
                             ProgressView()
                                 .scaleEffect(0.35)
                                 .frame(width: 8, height: 8)
-                            Text(entry.realtimeItemID == nil ? "draft" : "live")
+                            Text(draftStateText)
                                 .font(.system(size: 9, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.orange.opacity(0.7))
                         }
@@ -73,7 +74,7 @@ struct TranscriptionRowView: View {
                             ProgressView()
                                 .scaleEffect(0.45)
                                 .frame(width: 10, height: 10)
-                            Text("Translating...")
+                            Text(translationPendingText)
                                 .font(.system(size: 12, weight: .medium))
                                 .foregroundStyle(.secondary)
                         }
@@ -142,6 +143,17 @@ struct TranscriptionRowView: View {
             return Color.primary.opacity(0.02)
         }
         return Color.clear
+    }
+
+    private var draftStateText: String {
+        guard entry.realtimeItemID != nil else { return "draft" }
+        return realtimeMode == .translation ? "live caption" : "live"
+    }
+
+    private var translationPendingText: String {
+        realtimeMode == .translation && entry.realtimeItemID != nil
+            ? "Waiting for live translation..."
+            : "Translating..."
     }
 
     private var speakerDisplayName: String {

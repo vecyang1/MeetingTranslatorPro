@@ -1,5 +1,6 @@
 import Foundation
 import AVFoundation
+import AudioToolbox
 import Combine
 
 /// Manages microphone audio capture using AVAudioEngine with dual-mode chunking:
@@ -9,6 +10,8 @@ final class MicrophoneManager: ObservableObject {
     @Published var isCapturing = false
     @Published var audioLevel: Float = 0.0
     @Published var availableDevices: [AudioDevice] = []
+    @Published var selectedInputDeviceID: String?
+    @Published private(set) var activeInputDevice: AudioDevice?
 
     private var audioEngine: AVAudioEngine?
     private let bufferLock = NSLock()
@@ -64,6 +67,18 @@ final class MicrophoneManager: ObservableObject {
 
     /// Refresh the list of available audio input devices
     func refreshDevices() {
+        let devices = loadInputDevices()
+        DispatchQueue.main.async {
+            self.availableDevices = devices
+        }
+    }
+
+    func setPreferredInputDevice(id: String?) {
+        selectedInputDeviceID = id
+    }
+
+    /// Refresh the list of available audio input devices
+    private func loadInputDevices() -> [AudioDevice] {
         var devices: [AudioDevice] = []
         var propertyAddress = AudioObjectPropertyAddress(
             mSelector: kAudioHardwarePropertyDevices,
@@ -77,7 +92,7 @@ final class MicrophoneManager: ObservableObject {
             0, nil,
             &dataSize
         )
-        guard status == noErr else { return }
+        guard status == noErr else { return [] }
 
         let deviceCount = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
         var deviceIDs = [AudioDeviceID](repeating: 0, count: deviceCount)
@@ -88,7 +103,7 @@ final class MicrophoneManager: ObservableObject {
             &dataSize,
             &deviceIDs
         )
-        guard status == noErr else { return }
+        guard status == noErr else { return [] }
 
         var defaultInputID: AudioDeviceID = 0
         var defaultSize = UInt32(MemoryLayout<AudioDeviceID>.size)
@@ -115,33 +130,26 @@ final class MicrophoneManager: ObservableObject {
             let streamStatus = AudioObjectGetPropertyDataSize(deviceID, &inputAddress, 0, nil, &streamSize)
             guard streamStatus == noErr, streamSize > 0 else { continue }
 
-            var nameAddress = AudioObjectPropertyAddress(
-                mSelector: kAudioDevicePropertyDeviceNameCFString,
-                mScope: kAudioObjectPropertyScopeGlobal,
-                mElement: kAudioObjectPropertyElementMain
+            let deviceName = stringProperty(
+                deviceID: deviceID,
+                selector: kAudioDevicePropertyDeviceNameCFString
+            ) ?? "Unknown Device"
+            let uid = stringProperty(
+                deviceID: deviceID,
+                selector: kAudioDevicePropertyDeviceUID
             )
-            var nameRef: Unmanaged<CFString>?
-            var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
-            let nameStatus = AudioObjectGetPropertyData(deviceID, &nameAddress, 0, nil, &nameSize, &nameRef)
-
-            let deviceName: String
-            if nameStatus == noErr, let ref = nameRef {
-                deviceName = ref.takeUnretainedValue() as String
-            } else {
-                deviceName = "Unknown Device"
-            }
 
             let device = AudioDevice(
-                id: "\(deviceID)",
+                id: uid ?? "\(deviceID)",
                 name: deviceName,
-                isDefault: deviceID == defaultInputID
+                isDefault: deviceID == defaultInputID,
+                systemID: UInt32(deviceID),
+                uid: uid
             )
             devices.append(device)
         }
 
-        DispatchQueue.main.async {
-            self.availableDevices = devices
-        }
+        return devices
     }
 
     /// Start capturing audio from the microphone
@@ -156,8 +164,32 @@ final class MicrophoneManager: ObservableObject {
         accumulatedData = Data()
         lastChunkTime = Date()
 
+        let devices = loadInputDevices()
+        let selectedDevice = AudioInputDeviceSelection.selectedDevice(
+            preferredID: selectedInputDeviceID,
+            devices: devices
+        )
+        let activeDevice = selectedDevice ?? devices.first(where: { $0.isDefault })
+
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
+        if let selectedDevice {
+            guard let audioUnit = inputNode.audioUnit else {
+                throw AudioCaptureError.engineError("Selected microphone input is unavailable.")
+            }
+            var deviceID = AudioDeviceID(selectedDevice.systemID)
+            let status = AudioUnitSetProperty(
+                audioUnit,
+                kAudioOutputUnitProperty_CurrentDevice,
+                kAudioUnitScope_Global,
+                0,
+                &deviceID,
+                UInt32(MemoryLayout<AudioDeviceID>.size)
+            )
+            guard status == noErr else {
+                throw AudioCaptureError.engineError("Could not use \(selectedDevice.name) as microphone input (\(status)).")
+            }
+        }
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
         guard let targetFormat = AVAudioFormat(
@@ -209,6 +241,8 @@ final class MicrophoneManager: ObservableObject {
         // Start fallback timer — fires every chunkDuration to flush accumulated audio
         let interval = chunkDuration
         DispatchQueue.main.async {
+            self.availableDevices = devices
+            self.activeInputDevice = activeDevice
             self.chunkTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
                 self?.flushAccumulatedAudio()
             }
@@ -217,20 +251,24 @@ final class MicrophoneManager: ObservableObject {
     }
 
     /// Stop capturing audio
-    func stopCapturing() {
+    func stopCapturing(flushRemaining: Bool = true) {
         audioEngine?.inputNode.removeTap(onBus: 0)
         audioEngine?.stop()
         audioEngine = nil
 
-        DispatchQueue.main.async {
+        updateOnMain {
             self.chunkTimer?.invalidate()
             self.chunkTimer = nil
+            self.isCapturing = false
+            self.audioLevel = 0
+            self.activeInputDevice = nil
         }
 
-        // Flush remaining audio
         bufferLock.lock()
         let remaining: Data
-        if isSpeechActive && speechBuffer.count > 0 {
+        if !flushRemaining {
+            remaining = Data()
+        } else if isSpeechActive && speechBuffer.count > 0 {
             remaining = speechBuffer
         } else if accumulatedData.count > 0 {
             remaining = accumulatedData
@@ -248,10 +286,13 @@ final class MicrophoneManager: ObservableObject {
         if remaining.count >= minBytes {
             onAudioChunkReady?(remaining)
         }
+    }
 
-        DispatchQueue.main.async {
-            self.isCapturing = false
-            self.audioLevel = 0
+    private func updateOnMain(_ work: @escaping () -> Void) {
+        if Thread.isMainThread {
+            work()
+        } else {
+            DispatchQueue.main.async(execute: work)
         }
     }
 
@@ -380,6 +421,23 @@ final class MicrophoneManager: ObservableObject {
         let rms = sqrt(sum / Float(max(frames, 1)))
         let db = 20 * log10(max(rms, 0.000001))
         return max(0, min(1, (db + 60) / 60))
+    }
+
+    private func stringProperty(
+        deviceID: AudioDeviceID,
+        selector: AudioObjectPropertySelector
+    ) -> String? {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        guard AudioObjectHasProperty(deviceID, &address) else { return nil }
+        var ref: Unmanaged<CFString>?
+        var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        let status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &size, &ref)
+        guard status == noErr, let ref else { return nil }
+        return ref.takeUnretainedValue() as String
     }
 }
 

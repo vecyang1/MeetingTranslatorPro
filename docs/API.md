@@ -1,6 +1,6 @@
 # Internal API Reference — Meeting Translator Pro
 
-**Version:** 2.6
+**Version:** 2.7
 **Last Updated:** 2026-05-14
 
 This document describes the internal service APIs, data models, and external API integrations used by Meeting Translator Pro. It is intended for developers and AI agents working on the codebase.
@@ -529,7 +529,15 @@ Transcript display behavior:
 - `AppState.followLatestCaptions` persists under `com.meetingtranslator.followlatestcaptions` and defaults to `true` to preserve the existing caption-following behavior.
 - `AppState.setFollowLatestCaptions(_:)` persists only that display preference and must not call `saveSettings()`, reconfigure audio capture, or refresh Realtime routing. Follow is a view behavior, not an engine/session setting.
 - `ContentView.transcriptionList` gates all automatic scroll-to-bottom behavior behind `followLatestCaptions` and scrolls to a bottom anchor without animation. Turning the toggle off lets new captions arrive without moving the user's current reading position. The scroll trigger watches all visible row text lengths, so delayed non-last draft/final updates still keep the bottom anchored when follow mode is on.
-- `TranscriptionRowView` disables implicit animation for draft text growth and uses natural wrapping, so grey live text expands downward instead of vibrating the surrounding layout before final-row consolidation.
+- `TranscriptionRowView` disables implicit animation for draft text growth and uses natural wrapping, so grey live text expands downward instead of vibrating the surrounding layout before final-row consolidation. In Realtime translation mode, draft source-caption rows display `live caption` and rows waiting for Translate output display `Waiting for live translation...`; this distinguishes the `gpt-realtime-whisper` source-caption sidecar from the `gpt-realtime-translate` output path without implying legacy text translation or TTS.
+
+Microphone input device behavior:
+
+- `MicrophoneManager.refreshDevices()` lists CoreAudio input devices with stable UID-backed `AudioDevice.id`, current default state, and the numeric `systemID` needed by CoreAudio.
+- `AppState.selectedMicrophoneInputDeviceID` persists under `com.meetingtranslator.microphone.inputdevice`. `nil` means `System Default`; a value binds capture to the selected input device UID.
+- `MicrophoneManager.startCapturing()` applies a selected input device through `kAudioOutputUnitProperty_CurrentDevice` before reading `AVAudioEngine.inputNode.outputFormat(forBus:)`. If the saved device is missing, capture falls back to the current system default input.
+- `AppState.setMicrophoneInputDevice(_:)` restarts only microphone capture when recording is active and calls `stopCapturing(flushRemaining: false)` so stale buffered audio from the old mic is not sent to Realtime.
+- `ContentView` shows `microphoneInputShortName` next to the green mic meter. This is separate from the purple system-audio meter and the translated-audio headphones/speaker output control.
 
 `gpt-realtime-whisper` transcription sessions do not use `server_vad`; the app sets manual turn detection (`null`), appends latency-preset PCM chunks, and commits each chunk explicitly. Before each Whisper commit after the first per source, `OpenAIRealtimeTranscriptionService` prepends 300ms of same-source boundary context so words spanning chunk edges have enough audio context. Realtime capture uses continuous timer chunking, not the legacy VAD-first behavior, so active speech continues flowing before silence. Balanced latency uses 1.4s local chunks and Accuracy uses 2.4s local chunks to reduce over-fragmented rows while preserving during-speech partials.
 
@@ -546,6 +554,7 @@ Settings UI contract:
 - When `selectedEngine == .geminiFlash`, Settings may show Gemini Flash fast draft and quality pass intervals.
 - When `selectedEngine == .geminiLive`, Settings should label Gemini Live as a streaming alternate and should not claim it is the best live-meeting route now that OpenAI Realtime is the primary path.
 - The Settings translation toggle is bound through `AppState.setShowTranslations(_:)` so active realtime routing can restart safely if needed.
+- The Settings `Mic Input` picker is under `Audio Sources`, not under Realtime model controls, because it affects every engine. It should include `System Default` and all currently enumerated input devices.
 - The Settings live-interpreter toggle is bound through `AppState.setRealtimeInterpreterSessionEnabled(_:)` so enabling or disabling `gpt-realtime-translate` reroutes the active Realtime session immediately instead of waiting for another full settings save.
 - `Follow latest captions` belongs under Settings `Display Behavior` and also appears as an icon button in the control bar for live reading. It is a UI display preference, not a Realtime model parameter.
 - Translated audio playback appears under `Live Interpretation` only after M8 implementation. It is off by default, uses the existing `gpt-realtime-translate` output audio route, and is disabled with an explicit reason until interpreter and safety gates are satisfied.

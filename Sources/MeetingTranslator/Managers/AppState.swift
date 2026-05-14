@@ -35,6 +35,7 @@ final class AppState: ObservableObject {
     @Published var speakerRecognitionMode: SpeakerRecognitionMode = .off
     @Published var openAIRealtimeState: RealtimeSessionState = .disconnected
     @Published var activeRealtimeMode: RealtimeRouteMode?
+    @Published var selectedMicrophoneInputDeviceID: String?
 
     // MARK: - Recording Timer
     @Published var recordingElapsedSeconds: Int = 0
@@ -135,6 +136,7 @@ final class AppState: ObservableObject {
     private let realtimeTranslatedAudioSafeOutputRouteFingerprintKey = "com.meetingtranslator.realtime.translatedaudioplayback.m8.safeoutputroute"
     private let realtimeAutomaticFallbackKey = "com.meetingtranslator.realtime.automaticfallback"
     private let speakerRecognitionModeKey = "com.meetingtranslator.speakerrecognition.mode"
+    private let selectedMicrophoneInputDeviceIDKey = "com.meetingtranslator.microphone.inputdevice"
 
     // MARK: - Hallucination Detection
 
@@ -419,6 +421,7 @@ final class AppState: ObservableObject {
         let savedRealtimeSafeOutputRouteFingerprint = UserDefaults.standard.string(forKey: realtimeTranslatedAudioSafeOutputRouteFingerprintKey)
         let savedRealtimeFallback = UserDefaults.standard.object(forKey: realtimeAutomaticFallbackKey) as? Bool ?? true
         let savedSpeakerRecognitionMode = UserDefaults.standard.string(forKey: speakerRecognitionModeKey) ?? SpeakerRecognitionMode.off.rawValue
+        let savedMicrophoneInputDeviceID = UserDefaults.standard.string(forKey: selectedMicrophoneInputDeviceIDKey)
 
         self.apiKey = savedKey
         self.googleAPIKey = savedGoogleKey
@@ -441,10 +444,12 @@ final class AppState: ObservableObject {
         self.realtimeTranslatedAudioSafeOutputRouteFingerprint = savedRealtimeSafeOutputRouteFingerprint
         self.realtimeAutomaticFallback = savedRealtimeFallback
         self.speakerRecognitionMode = SpeakerRecognitionMode(rawValue: savedSpeakerRecognitionMode) ?? .off
+        self.selectedMicrophoneInputDeviceID = savedMicrophoneInputDeviceID
         self.whisperService = WhisperService(apiKey: savedKey)
         self.translationService = TranslationService(apiKey: savedKey)
         self.geminiFlashService = GeminiFlashService(apiKey: savedGoogleKey)
         self.geminiLiveService = GeminiLiveService(apiKey: savedGoogleKey)
+        self.micManager.setPreferredInputDevice(id: savedMicrophoneInputDeviceID)
 
         setupBindings()
         setupGeminiLiveCallbacks()
@@ -1140,6 +1145,14 @@ final class AppState: ObservableObject {
         }
     }
 
+    private func persistSelectedMicrophoneInputDevice() {
+        if let selectedMicrophoneInputDeviceID {
+            UserDefaults.standard.set(selectedMicrophoneInputDeviceID, forKey: selectedMicrophoneInputDeviceIDKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: selectedMicrophoneInputDeviceIDKey)
+        }
+    }
+
     @discardableResult
     private func confirmRealtimeTranslatedAudioSafeOutputForCurrentRoute() -> Bool {
         guard let route = AudioOutputRouteInspector.currentDefaultOutputRoute(),
@@ -1169,6 +1182,18 @@ final class AppState: ObservableObject {
     var shouldShowRealtimeTranslatedAudioToolbarControl: Bool {
         selectedEngine == .openAIRealtime
             && shouldUseRealtimeTranslationSession(sameLanguage: specifiedInputMatchesTarget())
+    }
+
+    var microphoneInputDisplayName: String {
+        AudioInputDeviceSelection.displayName(
+            preferredID: selectedMicrophoneInputDeviceID,
+            activeDevice: micManager.activeInputDevice,
+            devices: micManager.availableDevices
+        )
+    }
+
+    var microphoneInputShortName: String {
+        AudioInputDeviceSelection.shortDisplayName(microphoneInputDisplayName)
     }
 
     private func shouldUseRealtimeTextTranslationFallback(
@@ -1226,6 +1251,7 @@ final class AppState: ObservableObject {
         persistRealtimeTranslatedAudioSafeOutputRouteFingerprint()
         UserDefaults.standard.set(realtimeAutomaticFallback, forKey: realtimeAutomaticFallbackKey)
         UserDefaults.standard.set(speakerRecognitionMode.rawValue, forKey: speakerRecognitionModeKey)
+        persistSelectedMicrophoneInputDevice()
         whisperService.updateAPIKey(apiKey)
         translationService.updateAPIKey(apiKey)
         geminiFlashService.updateAPIKey(googleAPIKey)
@@ -1258,6 +1284,27 @@ final class AppState: ObservableObject {
         guard followLatestCaptions != enabled else { return }
         followLatestCaptions = enabled
         UserDefaults.standard.set(enabled, forKey: followLatestCaptionsKey)
+    }
+
+    func setMicrophoneInputDevice(_ deviceID: String?) {
+        do {
+            let result = try MicrophoneInputDeviceSwitch.apply(
+                currentID: selectedMicrophoneInputDeviceID,
+                requestedID: deviceID,
+                isRecording: isRecording,
+                isMicEnabled: isMicEnabled,
+                setSelectedDevice: { selectedMicrophoneInputDeviceID = $0 },
+                setPreferredDevice: { micManager.setPreferredInputDevice(id: $0) },
+                persistSelection: { persistSelectedMicrophoneInputDevice() },
+                stopCapturing: { micManager.stopCapturing(flushRemaining: $0) },
+                startCapturing: { try micManager.startCapturing() }
+            )
+            if result.restartedCapture {
+                statusMessage = "Mic input: \(microphoneInputDisplayName)"
+            }
+        } catch {
+            showError("Mic input failed: \(error.localizedDescription)")
+        }
     }
 
     func setRealtimeInterpreterSessionEnabled(_ enabled: Bool) {

@@ -1,6 +1,6 @@
 # PRD: Realtime Translated Audio Playback
 
-**Version:** 1.4
+**Version:** 1.5
 **Date:** 2026-05-14
 **Status:** Implemented and verified
 **Stage:** M8, after M7 text interpretation
@@ -310,6 +310,7 @@ In the main window, add only compact controls:
 - speaker/mute icon button once playback is enabled;
 - visible "translated audio playing" state only while audio is actively queued or playing;
 - keep this translated-audio output control visually distinct from the purple system-audio capture level meter so users do not confuse input capture with interpreter playback;
+- keep the active microphone input name visible beside the green mic meter, because headphone output safety does not prove the headset microphone is the right input device;
 - no large new panel, no marketing copy.
 
 ### FR-M8-008: Cost and Observability
@@ -508,3 +509,4 @@ Stop and report before continuing if:
 | 2026-05-13 | 1.2 | Marked M8 implemented and verified after full mission verification passed with installed-app current-process audio exclusion proof, captured translated output WAVs, build/install/runtime checks, and GitNexus detect-changes. |
 | 2026-05-13 | 1.3 | Tightened microphone feedback safety after live use showed MacBook speaker playback could re-enter the microphone. CoreAudio output-route inspection now blocks likely speaker/display/HDMI/AirPlay/aggregate/unrecognized routes while mic capture is active, binds confirmation to the exact route fingerprint, and clears stale playback opt-in plus safe-output confirmation on safety downgrade. |
 | 2026-05-14 | 1.4 | Added the main-window headphones activation contract after live use showed AirPods were correctly detected but playback stayed off because confirmation and opt-in were hidden in Settings. |
+| 2026-05-14 | 1.5 | Added the microphone-input clarity requirement after live AirPods testing showed headphone output can switch macOS input to the headset mic; users must be able to select Mac mic while keeping translated audio on headphones. |

@@ -306,7 +306,8 @@ struct ContentView: View {
                                 TranscriptionRowView(
                                     entry: entry,
                                     showTranslation: appState.showTranslations,
-                                    targetLanguage: appState.targetLanguage
+                                    targetLanguage: appState.targetLanguage,
+                                    realtimeMode: appState.activeRealtimeMode
                                 )
                                 .id(entry.id)
                             }
@@ -474,6 +475,13 @@ struct ContentView: View {
                                 .font(.system(size: 11))
                                 .foregroundStyle(.green)
                             AudioLevelIndicator(level: appState.micLevel, barCount: 6, color: .green)
+                            Text(appState.microphoneInputShortName)
+                                .font(.system(size: 9, weight: .medium, design: .rounded))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .frame(maxWidth: 90, alignment: .leading)
+                                .help("Mic input: \(appState.microphoneInputDisplayName)")
                         }
                     }
                     if appState.isSystemAudioEnabled && appState.systemAudioManager.isCapturing {
