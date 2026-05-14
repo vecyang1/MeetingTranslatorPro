@@ -96,7 +96,10 @@ final class OpenAIRealtimeCoordinator {
         switch activeMode {
         case .translation:
             let sentToTranslation = translationServices[source]?.sendAudio(data) ?? false
-            let sentToSourceCaption = transcriptionServices[source]?.sendAudio(data) ?? false
+            let sentToSourceCaption = RealtimeTranslationAudioRoutingPolicy
+                .shouldSendSourceCaption(sentToTranslation: sentToTranslation)
+                ? (transcriptionServices[source]?.sendAudio(data) ?? false)
+                : false
             return RealtimeSendResult(sentToPrimary: sentToTranslation, sentToSourceCaption: sentToSourceCaption)
         case .transcription:
             return RealtimeSendResult(
@@ -111,6 +114,12 @@ final class OpenAIRealtimeCoordinator {
         case .none:
             return RealtimeSendResult(sentToPrimary: false, sentToSourceCaption: false)
         }
+    }
+
+    @discardableResult
+    func sendTranslationContinuityAudio(_ data: Data, source: TranscriptionEntry.AudioSource) -> Bool {
+        guard activeMode == .translation else { return false }
+        return translationServices[source]?.sendAudio(data) ?? false
     }
 
     func resetTranscriptionBoundaryContext(source: TranscriptionEntry.AudioSource) {

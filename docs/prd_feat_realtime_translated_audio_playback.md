@@ -1,6 +1,6 @@
 # PRD: Realtime Translated Audio Playback
 
-**Version:** 1.5
+**Version:** 1.6
 **Date:** 2026-05-14
 **Status:** Implemented and verified
 **Stage:** M8, after M7 text interpretation
@@ -20,7 +20,7 @@ M7 deliberately kept playback disabled because the translation model can emit `s
 
 M8 may enable playback only when a feedback-safety preflight passes. The first shipped version should be a conservative "Headphones / safe output preview" mode, not a room-speaker broadcast mode.
 
-Current OpenAI documentation reviewed on 2026-05-13:
+Current OpenAI documentation reviewed on 2026-05-14:
 
 - Realtime translation guide: https://developers.openai.com/api/docs/guides/realtime-translation
 - `gpt-realtime-translate` model page: https://developers.openai.com/api/docs/models/gpt-realtime-translate
@@ -363,6 +363,7 @@ MicrophoneManager / SystemAudioManager
 Ownership:
 
 - Protocol parsing stays in `OpenAIRealtimeTranslationService`.
+- Audio fan-out treats `OpenAIRealtimeTranslationService` as primary. Source-caption sidecar rows may be created only after the same chunk is accepted by Translate; a bounded near-silence continuity tail is sent only to Translate after accepted voiced chunks to preserve interpreter boundaries without committing silence to Whisper or sending unlimited quiet audio.
 - Audio decoding and scheduling stays in a new playback manager.
 - Feedback safety stays in app/runtime helpers, not in the reducer.
 - Row attachment remains in `RealtimeEventReducer`.
@@ -510,3 +511,4 @@ Stop and report before continuing if:
 | 2026-05-13 | 1.3 | Tightened microphone feedback safety after live use showed MacBook speaker playback could re-enter the microphone. CoreAudio output-route inspection now blocks likely speaker/display/HDMI/AirPlay/aggregate/unrecognized routes while mic capture is active, binds confirmation to the exact route fingerprint, and clears stale playback opt-in plus safe-output confirmation on safety downgrade. |
 | 2026-05-14 | 1.4 | Added the main-window headphones activation contract after live use showed AirPods were correctly detected but playback stayed off because confirmation and opt-in were hidden in Settings. |
 | 2026-05-14 | 1.5 | Added the microphone-input clarity requirement after live AirPods testing showed headphone output can switch macOS input to the headset mic; users must be able to select Mac mic while keeping translated audio on headphones. |
+| 2026-05-14 | 1.6 | Recorded the live-translation hang fix: Translate is now primary in fan-out, a bounded quiet-continuity tail reaches `gpt-realtime-translate`, and Stop clears stale pending translation state before playback/safety completion is claimed. |

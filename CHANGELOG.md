@@ -4,6 +4,22 @@
 
 ### Added
 
+- Bumped the installed app version to `1.1.4` build `6` for the live-translation audio fan-out and Stop-state hotfix.
+
+### Fixed
+
+- Fixed a live Realtime interpreter state where source captions could show `Waiting for live translation...` forever if the `gpt-realtime-whisper` sidecar accepted audio that the `gpt-realtime-translate` session missed. In translation mode, source-caption audio is now forwarded only after the Translate session accepts the same chunk.
+- Fixed short-utterance translation hangs by forwarding a bounded near-silence continuity tail to `gpt-realtime-translate` only after accepted voiced chunks, matching the official Realtime Translation need for phrase-boundary silence while preventing Whisper sidecar silence commits and unlimited quiet spend.
+- Fixed Stop finalization so realtime translation rows cannot remain stuck on `Translating...` after the translation session is disconnected.
+
+### Verified
+
+- Full realtime mission verification passed with installed app version `1.1.4` build `6`, system-audio current-process exclusion proof, and synthetic provider probes that captured `gpt-realtime-translate` output audio as PCM16 24 kHz for EN->ZH, ZH->EN, and code-switch fixtures.
+
+## 2026-05-14
+
+### Added
+
 - Bumped the installed app version to `1.1.3` build `5` for the AirPods/microphone input follow-up.
 - Added a Settings `Mic Input` picker under `Audio Sources`, with `System Default` plus concrete input devices such as MacBook microphone, AirPods microphone, Loopback, and USB interfaces.
 - Added the active microphone input name to the main control bar, so users can tell whether the app is listening through the Mac microphone or the headset microphone while translated audio plays to headphones.

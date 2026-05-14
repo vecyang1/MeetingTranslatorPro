@@ -35,4 +35,14 @@ enum RealtimeDraftFinalizer {
         draftEntryIDs.removeAll()
         return finals
     }
+
+    static func clearStoppedTranslationPending(
+        entries: inout [TranscriptionEntry],
+        realtimeMode: RealtimeRouteMode?
+    ) {
+        guard realtimeMode == .translation else { return }
+        for idx in entries.indices where entries[idx].realtimeItemID != nil {
+            entries[idx].isTranslating = false
+        }
+    }
 }

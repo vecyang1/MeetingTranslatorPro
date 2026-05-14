@@ -1,6 +1,6 @@
 # PRD: Realtime Settings and Runtime Clarity
 
-**Version:** 1.2
+**Version:** 1.3
 **Date:** 2026-05-13
 **Status:** Implemented locally; updated for M8 safe playback controls
 **Stage:** M7 support plus M8 safe-preview playback settings
@@ -158,6 +158,8 @@ Show when selected engine is Realtime:
 
 The "Live interpreter session" toggle should be enabled only when enough prerequisites exist to make the choice meaningful. If the UI allows toggling early, status must still prevent runtime spend until gates are true.
 
+Live interpretation pending copy must reflect the actual runtime state. `Waiting for live translation...` is allowed only while a realtime Translate session can still deliver output. After Stop, reconnect downgrade, or translation-session disconnect, realtime rows must not keep a spinning pending translation state.
+
 ### FR-SET-004: Prerequisite Status Function
 
 Add or preserve a pure status builder that can be tested without UI:
@@ -254,3 +256,4 @@ Required smoke tests:
 | 2026-05-13 | 1.0 | Goal-ready Settings PRD aligned to Realtime Translate interpreter route. |
 | 2026-05-13 | 1.1 | Updated Settings contract for M8 safe-preview translated audio controls after implementation replaced the old "coming later" row. |
 | 2026-05-14 | 1.2 | Added the Mic Input picker requirement after AirPods output testing exposed ambiguous headset-vs-Mac microphone capture. |
+| 2026-05-14 | 1.3 | Added the runtime clarity rule that pending live-translation copy must clear after Stop/disconnect and must not imply a future Translate event when the session is gone. |

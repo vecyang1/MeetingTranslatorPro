@@ -108,6 +108,7 @@ final class AppState: ObservableObject {
     private var draftEntryIDs: Set<UUID> = []
     private var stitchWindowStart: Date = Date()
     private var translatedAudioPlaybackWasActiveThisSession = false
+    private var realtimeTranslationQuietContinuityRemaining: [TranscriptionEntry.AudioSource: Int] = [:]
     private var realtimeTranslatedAudioSafeOutputRouteFingerprint: String?
 
     /// Input languages the user expects speakers to use.
@@ -675,16 +676,37 @@ final class AppState: ObservableObject {
         realtimeCoordinator.stop()
         translatedAudioPlayer.stop(clearQueue: true)
         realtimeTranslatedAudioPlaybackActive = false
+        realtimeTranslationQuietContinuityRemaining.removeAll()
         activeRealtimeMode = nil
         openAIRealtimeState = .disconnected
     }
 
     private func routeRealtimeAudioChunk(_ data: Data, source: TranscriptionEntry.AudioSource) {
-        guard hasEnoughEnergy(data) else {
+        let hasEnoughEnergy = hasEnoughEnergy(data)
+        let currentRealtimeMode = activeRealtimeMode ?? realtimeCoordinator.activeMode
+        guard hasEnoughEnergy else {
             realtimeCoordinator.resetTranscriptionBoundaryContext(source: source)
+            let remainingQuietChunks = realtimeTranslationQuietContinuityRemaining[source] ?? 0
+            if RealtimeTranslationAudioRoutingPolicy.shouldForwardQuietContinuityToTranslation(
+                activeMode: currentRealtimeMode,
+                hasEnoughEnergy: false,
+                remainingQuietContinuityChunks: remainingQuietChunks
+            ) {
+                let sent = realtimeCoordinator.sendTranslationContinuityAudio(data, source: source)
+                realtimeTranslationQuietContinuityRemaining[source] = sent
+                    ? max(0, remainingQuietChunks - 1)
+                    : 0
+            }
             return
         }
-        _ = realtimeCoordinator.sendAudio(data, source: source)
+        let sendResult = realtimeCoordinator.sendAudio(data, source: source)
+        if currentRealtimeMode == .translation {
+            realtimeTranslationQuietContinuityRemaining[source] = sendResult.sentToPrimary
+                ? RealtimeTranslationAudioRoutingPolicy.defaultQuietContinuityChunkLimit
+                : 0
+        } else {
+            realtimeTranslationQuietContinuityRemaining[source] = nil
+        }
     }
 
     private func handleOpenAIRealtimeEvent(_ event: RealtimeAppEvent) async {
@@ -1542,6 +1564,9 @@ final class AppState: ObservableObject {
         for reduced in realtimeFinals {
             await confirmRealtimeEntry(reduced, modeOverride: realtimeMode, applyDuplicatePrefix: false)
         }
+        if !isRecording {
+            RealtimeDraftFinalizer.clearStoppedTranslationPending(entries: &entries, realtimeMode: realtimeMode)
+        }
     }
 
     func clearEntries() {
@@ -1614,6 +1639,7 @@ final class AppState: ObservableObject {
         lastConfirmedTranslation = nil
         lastConfirmedLanguage = nil
         draftEntryIDs = []
+        realtimeTranslationQuietContinuityRemaining.removeAll()
         stitchWindowStart = Date()
     }
 

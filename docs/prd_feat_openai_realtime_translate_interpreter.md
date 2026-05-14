@@ -1,8 +1,8 @@
 # PRD: OpenAI Realtime Translate Interpreter
 
-**Version:** 1.0
+**Version:** 1.3
 **Date:** 2026-05-13
-**Status:** Goal-ready, not complete until installed-app E2E proves it
+**Status:** Implemented and verified
 **Stage:** M7
 **Primary user promise:** same-time translated subtitles for live meetings
 **Primary model:** `gpt-realtime-translate`
@@ -189,11 +189,13 @@ When interpreter mode is active, the coordinator should also run a source-captio
 
 - use `gpt-realtime-whisper`;
 - connect through the realtime transcription route;
-- send the same accepted source audio after the same source/language gates;
+- send only source audio already accepted by the primary `gpt-realtime-translate` session, so a sidecar-only row cannot wait forever for missing Translate output;
 - parse `conversation.item.input_audio_transcription.delta` and completed events;
 - attach source captions to the matching translation item/source row.
 
 The sidecar exists for auditability, language display, export, and trust. It is not the translation engine.
+
+A bounded near-silence continuity tail in interpreter mode should be forwarded to `gpt-realtime-translate` only after Translate accepts voiced audio. Realtime Translation is continuous and uses silence between phrases as part of the stream; the Whisper sidecar should not commit those near-silence chunks because they can create empty or unstable source rows, and the app must not send unlimited quiet audio.
 
 ### FR-M7-004: Row Attachment Rules
 
@@ -447,3 +449,4 @@ Stop and report before continuing if:
 | 2026-05-13 | 1.0 | Canonical goal-ready PRD for true `gpt-realtime-translate` simultaneous interpretation; defines Whisper as source-caption sidecar only. |
 | 2026-05-13 | 1.1 | Recorded full synthetic provider verification for Whisper captions, Translate EN->ZH/ZH->EN/code-switch output, and Realtime-2 agent text; no private audio used. |
 | 2026-05-13 | 1.2 | Clarified that M8 safe-preview playback supersedes the old M7 "audio disabled" wording without making text subtitles depend on playback. |
+| 2026-05-14 | 1.3 | Hardened the implemented interpreter fan-out after live testing: source-caption rows require Translate-accepted audio, a bounded quiet-continuity tail goes only to Translate, and Stop clears pending translation state. |

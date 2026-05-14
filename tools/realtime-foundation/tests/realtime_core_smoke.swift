@@ -690,6 +690,37 @@ struct RealtimeCoreSmoke {
         boundaryContext.reset()
         precondition(boundaryContext.contextualizedAudio(secondMicChunk, source: .microphone) == secondMicChunk)
 
+        precondition(RealtimeTranslationAudioRoutingPolicy.shouldSendSourceCaption(sentToTranslation: true))
+        precondition(!RealtimeTranslationAudioRoutingPolicy.shouldSendSourceCaption(sentToTranslation: false))
+        precondition(
+            RealtimeTranslationAudioRoutingPolicy.shouldForwardQuietContinuityToTranslation(
+                activeMode: .translation,
+                hasEnoughEnergy: false,
+                remainingQuietContinuityChunks: 2
+            )
+        )
+        precondition(
+            !RealtimeTranslationAudioRoutingPolicy.shouldForwardQuietContinuityToTranslation(
+                activeMode: .translation,
+                hasEnoughEnergy: false,
+                remainingQuietContinuityChunks: 0
+            )
+        )
+        precondition(
+            !RealtimeTranslationAudioRoutingPolicy.shouldForwardQuietContinuityToTranslation(
+                activeMode: .translation,
+                hasEnoughEnergy: true,
+                remainingQuietContinuityChunks: 2
+            )
+        )
+        precondition(
+            !RealtimeTranslationAudioRoutingPolicy.shouldForwardQuietContinuityToTranslation(
+                activeMode: .transcription,
+                hasEnoughEnergy: false,
+                remainingQuietContinuityChunks: 2
+            )
+        )
+
         let realtimeID = UUID()
         var draftIDs: Set<UUID> = [UUID()]
         var entries = [
@@ -724,6 +755,28 @@ struct RealtimeCoreSmoke {
         precondition(entries.contains { $0.realtimeItemID == nil && !$0.isDraft && $0.originalText == "legacy draft text" })
         precondition(!entries.contains { $0.realtimeItemID == "item_empty" })
         precondition(draftIDs.isEmpty)
+
+        var stoppedTranslationEntries = [
+            TranscriptionEntry(
+                originalText: "你好",
+                detectedLanguage: "zh",
+                isTranslating: true,
+                isDraft: false,
+                realtimeItemID: "stopped_realtime"
+            ),
+            TranscriptionEntry(
+                originalText: "legacy",
+                detectedLanguage: "zh",
+                isTranslating: true,
+                isDraft: false
+            )
+        ]
+        RealtimeDraftFinalizer.clearStoppedTranslationPending(
+            entries: &stoppedTranslationEntries,
+            realtimeMode: .translation
+        )
+        precondition(stoppedTranslationEntries[0].isTranslating == false)
+        precondition(stoppedTranslationEntries[1].isTranslating == true)
 
         let firstRealtimeSegment = TranscriptionEntry(
             timestamp: Date(timeIntervalSince1970: 0),

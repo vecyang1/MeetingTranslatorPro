@@ -363,6 +363,22 @@ struct RealtimeSendResult: Equatable {
     }
 }
 
+enum RealtimeTranslationAudioRoutingPolicy {
+    static let defaultQuietContinuityChunkLimit = 3
+
+    static func shouldSendSourceCaption(sentToTranslation: Bool) -> Bool {
+        sentToTranslation
+    }
+
+    static func shouldForwardQuietContinuityToTranslation(
+        activeMode: RealtimeRouteMode?,
+        hasEnoughEnergy: Bool,
+        remainingQuietContinuityChunks: Int
+    ) -> Bool {
+        activeMode == .translation && !hasEnoughEnergy && remainingQuietContinuityChunks > 0
+    }
+}
+
 enum RealtimeAppEvent {
     case partialTranscript(source: TranscriptionEntry.AudioSource, itemID: String, text: String, timestamp: Date)
     case finalTranscript(source: TranscriptionEntry.AudioSource, itemID: String, text: String, language: String?, timestamp: Date)

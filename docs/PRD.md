@@ -1,6 +1,6 @@
 # Product Requirements Document — Meeting Translator Pro
 
-**Version:** 2.7
+**Version:** 2.8
 **Last Updated:** 2026-05-14
 **Status:** Active Development
 **Platform:** macOS 14.0+ (Sonoma)
@@ -172,6 +172,8 @@ Realtime work is now split into explicit feature PRDs so future agents do not bl
 
 Same-time interpretation decision: `gpt-realtime-translate` is the interpreter model. `gpt-realtime-whisper` may run beside it only to provide original-language captions and export/audit text. `gpt-realtime-2` remains reserved for future voice-agent or meeting-assistant workflows.
 
+Realtime interpreter fan-out decision: the Translate session is the primary path. The app may create source-caption rows only for audio chunks accepted by `gpt-realtime-translate`; otherwise a sidecar-only row can hang forever waiting for a translation that will never arrive. After accepted voiced chunks, a bounded low-energy continuity tail is still forwarded to `gpt-realtime-translate` only, because official Realtime Translation docs require phrase-boundary silence as part of the continuous stream. Stop must clear any pending realtime translation indicator after disconnect so the transcript does not keep spinning when no future Translate event can arrive.
+
 Translated audio playback decision: M8 safe preview playback uses only `gpt-realtime-translate` output audio from `/v1/realtime/translations`. Playback remains off by default and cannot be enabled by the old placeholder preference key. Runtime passes `translatedAudioPlaybackEnabled: true` only after explicit user opt-in, Realtime interpreter gates, ScreenCaptureKit current-process audio exclusion support, and microphone/output safety all pass. When the microphone is active, CoreAudio route inspection blocks likely speakers, display audio, HDMI/DisplayPort, AirPlay, aggregate/multi-output routes, and unrecognized outputs regardless of stale confirmation state. Safe-output confirmation is bound to the current route fingerprint and may unlock only positive headphone-like routes. Room-speaker safety is not claimed; Settings tells users to use headphones or a confirmed non-speaker output. The main window exposes a headphones control when the interpreter route is eligible; clicking it is the explicit opt-in that confirms the current headphone-like output route and enables translated audio, keeping it visually separate from the purple system-audio capture level meter.
 
 ---
@@ -334,3 +336,4 @@ The following are explicitly out of scope for the current version:
 | 2026-05-13 | 2.5 | Verified the full realtime mission runner with synthetic `gpt-realtime-whisper`, `gpt-realtime-translate`, and `gpt-realtime-2` provider probes; hardened the probe harness to avoid optional Python WebSocket/audio dependencies. |
 | 2026-05-14 | 2.6 | Added main-window headphones activation for M8 translated audio so users can confirm the current safe output route without confusing it with system-audio capture. |
 | 2026-05-14 | 2.7 | Added configurable microphone input and clearer realtime row status copy after AirPods output made the headset mic path ambiguous. |
+| 2026-05-14 | 2.8 | Hardened Realtime interpreter audio fan-out so source-caption sidecar rows are created only for Translate-accepted audio, a bounded quiet-continuity tail reaches `gpt-realtime-translate`, and Stop clears stale pending translation state. |
