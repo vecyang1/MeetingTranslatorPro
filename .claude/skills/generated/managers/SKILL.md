@@ -1,67 +1,67 @@
 ---
 name: managers
-description: "Skill for the Managers area of MeetingTranslatorPro. 140 symbols across 16 files."
+description: "Skill for the Managers area of MeetingTranslatorPro. 106 symbols across 12 files."
 ---
 
 # Managers
 
-140 symbols | 16 files | Cohesion: 76%
+106 symbols | 12 files | Cohesion: 69%
 
 ## When to Use
 
 - Working with code in `Sources/`
-- Understanding how transcribe, transcribeWAV, performRequest work
+- Understanding how updateTargetLanguage, connect, disconnect work
 - Modifying managers-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+71) |
+| `Sources/MeetingTranslator/Managers/AppState.swift` | attemptGeminiLiveReconnect, setupGeminiLiveCallbacks, cancelOpenAIRealtimeRecovery, checkPermissions, toggleRecording (+53) |
 | `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | refreshDevices, loadInputDevices, startCapturing, processAudioData, calculateEnergyDB (+9) |
-| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+4) |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+3) |
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, configureChunking, flushAccumulatedAudio, restartChunkTimerIfCapturing (+2) |
-| `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, transcribeWAV, performRequest, appendFormField, createWAVData (+1) |
-| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData, updateAPIKey |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | mergedText, applyMergedFinal, shouldInsertSpace, isLeadingPunctuation, isTrailingPunctuation |
 | `Sources/MeetingTranslator/Models/AppSettings.swift` | resolvedDeviceID, selectedDevice, displayName, normalizedID, apply |
-| `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | setMuted, stop, setVolume |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeConnectionRecoveryPolicy.swift` | shouldRetry, retryDelayNanoseconds, isRecoverableNetworkError |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | mayEnable, plan |
+| `Sources/MeetingTranslator/Services/CostTracker.swift` | resetSession |
+| `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | AudioOutputRouteObserver |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`transcribe`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:30`
-- **`transcribeWAV`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:37`
-- **`performRequest`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:90`
-- **`appendFormField`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:164`
-- **`createWAVData`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:171`
+- **`updateTargetLanguage`** (Function) — `Sources/MeetingTranslator/Services/GeminiLiveService.swift:55`
+- **`connect`** (Function) — `Sources/MeetingTranslator/Services/GeminiLiveService.swift:65`
+- **`disconnect`** (Function) — `Sources/MeetingTranslator/Services/GeminiLiveService.swift:100`
+- **`reconnect`** (Function) — `Sources/MeetingTranslator/Services/GeminiLiveService.swift:114`
+- **`startPingLoop`** (Function) — `Sources/MeetingTranslator/Services/GeminiLiveService.swift:169`
 
 ## Key Symbols
 
 | Symbol | Type | File | Line |
 |--------|------|------|------|
 | `AudioOutputRouteObserver` | Class | `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | 152 |
-| `transcribe` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 30 |
-| `transcribeWAV` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 37 |
-| `performRequest` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 90 |
-| `appendFormField` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 164 |
-| `createWAVData` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 171 |
-| `translate` | Function | `Sources/MeetingTranslator/Services/TranslationService.swift` | 26 |
-| `transcribeAndTranslate` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 28 |
-| `buildRequestBody` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 91 |
-| `buildTargetLangDescription` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 280 |
-| `createWAVData` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 289 |
-| `logWhisperTranscription` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 62 |
-| `logGPTTranslation` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 68 |
-| `logGeminiFlash` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 75 |
-| `rmsEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 350 |
-| `hasEnoughEnergy` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 365 |
-| `isSameLanguage` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 372 |
-| `extractContext` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 379 |
-| `removeDuplicatePrefix` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 385 |
-| `trimEntriesIfNeeded` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 525 |
+| `updateTargetLanguage` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 55 |
+| `connect` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 65 |
+| `disconnect` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 100 |
+| `reconnect` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 114 |
+| `startPingLoop` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 169 |
+| `receiveLoop` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 214 |
+| `processServerMessage` | Function | `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | 241 |
+| `resetSession` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 48 |
+| `checkAndRequestPermission` | Function | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | 86 |
+| `openScreenRecordingSettings` | Function | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | 100 |
+| `attemptGeminiLiveReconnect` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 539 |
+| `setupGeminiLiveCallbacks` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 560 |
+| `cancelOpenAIRealtimeRecovery` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 583 |
+| `checkPermissions` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1246 |
+| `toggleRecording` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1442 |
+| `startRecording` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1446 |
+| `stopRecording` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1513 |
+| `clearEntries` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1571 |
+| `startRecordingTimer` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1600 |
 
 ## Execution Flows
 
@@ -73,22 +73,22 @@ Start here when exploring this area:
 | `SetupBindings → LiveResult` | cross_community | 7 |
 | `ProcessGeminiQualityLayer → IsRepeatedCharacterHallucination` | cross_community | 7 |
 | `ProcessGeminiQualityLayer → GeminiResult` | cross_community | 7 |
+| `ConsolidateRecentRealtimeUtterances → IsBoundary` | cross_community | 7 |
 | `HandleOpenAIRealtimeEvent → Disconnect` | cross_community | 6 |
-| `ProcessGeminiFast → IsRepeatedCharacterHallucination` | cross_community | 6 |
-| `ProcessGeminiFast → GeminiResult` | cross_community | 6 |
 | `SetupGeminiLiveCallbacks → ScalarHits` | cross_community | 6 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → StringProperty` | cross_community | 6 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| OpenAIRealtime | 12 calls |
-| Services | 8 calls |
+| Services | 21 calls |
+| OpenAIRealtime | 16 calls |
 | Realtime-foundation | 2 calls |
 | Models | 1 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "transcribe"})` — see callers and callees
+1. `gitnexus_context({name: "updateTargetLanguage"})` — see callers and callees
 2. `gitnexus_query({query: "managers"})` — find related execution flows
 3. Read key files listed above for implementation details
