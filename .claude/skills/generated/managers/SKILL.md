@@ -1,42 +1,42 @@
 ---
 name: managers
-description: "Skill for the Managers area of MeetingTranslatorPro. 114 symbols across 13 files."
+description: "Skill for the Managers area of MeetingTranslatorPro. 125 symbols across 15 files."
 ---
 
 # Managers
 
-114 symbols | 13 files | Cohesion: 74%
+125 symbols | 15 files | Cohesion: 75%
 
 ## When to Use
 
 - Working with code in `Sources/`
-- Understanding how transcribe, createWAVData, translate work
+- Understanding how transcribe, transcribeWAV, performRequest work
 - Modifying managers-related functionality
 
 ## Key Files
 
 | File | Symbols |
 |------|---------|
-| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+65) |
+| `Sources/MeetingTranslator/Managers/AppState.swift` | rmsEnergy, hasEnoughEnergy, isSameLanguage, extractContext, removeDuplicatePrefix (+68) |
+| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+4) |
 | `Sources/MeetingTranslator/Managers/MicrophoneManager.swift` | stopCapturing, configureChunking, restartChunkTimerIfCapturing, startCapturing, processAudioData (+4) |
-| `Sources/MeetingTranslator/Services/GeminiLiveService.swift` | updateTargetLanguage, connect, disconnect, reconnect, startPingLoop (+3) |
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | checkAndRequestPermission, openScreenRecordingSettings, configureChunking, flushAccumulatedAudio, restartChunkTimerIfCapturing (+2) |
-| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData |
+| `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, transcribeWAV, performRequest, appendFormField, createWAVData (+1) |
+| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | transcribeAndTranslate, buildRequestBody, buildTargetLangDescription, createWAVData, updateAPIKey |
 | `Sources/MeetingTranslator/Services/CostTracker.swift` | logWhisperTranscription, logGPTTranslation, logGeminiFlash, resetSession |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | setMuted, stop, setVolume |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeConnectionRecoveryPolicy.swift` | shouldRetry, retryDelayNanoseconds, isRecoverableNetworkError |
-| `Sources/MeetingTranslator/Services/WhisperService.swift` | transcribe, createWAVData |
-| `Sources/MeetingTranslator/Services/TranslationService.swift` | translate |
+| `Sources/MeetingTranslator/Services/TranslationService.swift` | translate, updateAPIKey |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | mayEnable, plan |
 
 ## Entry Points
 
 Start here when exploring this area:
 
 - **`transcribe`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:30`
+- **`transcribeWAV`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:37`
+- **`performRequest`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:90`
+- **`appendFormField`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:164`
 - **`createWAVData`** (Function) — `Sources/MeetingTranslator/Services/WhisperService.swift:171`
-- **`translate`** (Function) — `Sources/MeetingTranslator/Services/TranslationService.swift:26`
-- **`transcribeAndTranslate`** (Function) — `Sources/MeetingTranslator/Services/GeminiFlashService.swift:28`
-- **`buildRequestBody`** (Function) — `Sources/MeetingTranslator/Services/GeminiFlashService.swift:91`
 
 ## Key Symbols
 
@@ -44,6 +44,9 @@ Start here when exploring this area:
 |--------|------|------|------|
 | `AudioOutputRouteObserver` | Class | `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | 152 |
 | `transcribe` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 30 |
+| `transcribeWAV` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 37 |
+| `performRequest` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 90 |
+| `appendFormField` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 164 |
 | `createWAVData` | Function | `Sources/MeetingTranslator/Services/WhisperService.swift` | 171 |
 | `translate` | Function | `Sources/MeetingTranslator/Services/TranslationService.swift` | 26 |
 | `transcribeAndTranslate` | Function | `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | 28 |
@@ -59,9 +62,6 @@ Start here when exploring this area:
 | `extractContext` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 377 |
 | `removeDuplicatePrefix` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 383 |
 | `trimEntriesIfNeeded` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 520 |
-| `upsertRealtimePartial` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 775 |
-| `confirmRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 836 |
-| `removeRealtimeEntry` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1048 |
 
 ## Execution Flows
 
@@ -82,8 +82,8 @@ Start here when exploring this area:
 
 | Area | Connections |
 |------|-------------|
-| OpenAIRealtime | 11 calls |
-| Services | 10 calls |
+| OpenAIRealtime | 21 calls |
+| Services | 3 calls |
 | Realtime-foundation | 2 calls |
 | Models | 1 calls |
 

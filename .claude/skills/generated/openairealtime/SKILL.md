@@ -1,16 +1,16 @@
 ---
 name: openairealtime
-description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 86 symbols across 13 files."
+description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 101 symbols across 15 files."
 ---
 
 # OpenAIRealtime
 
-86 symbols | 13 files | Cohesion: 82%
+101 symbols | 15 files | Cohesion: 79%
 
 ## When to Use
 
 - Working with code in `Sources/`
-- Understanding how realtimeMergeCandidate, consolidateRecentRealtimeUtterances, mergeTranslations work
+- Understanding how logGeminiLive, logOpenAIRealtimeWhisper, logOpenAIRealtimeTranslate work
 - Modifying openairealtime-related functionality
 
 ## Key Files
@@ -18,25 +18,25 @@ description: "Skill for the OpenAIRealtime area of MeetingTranslatorPro. 86 symb
 | File | Symbols |
 |------|---------|
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | canMerge, shouldDropUnstableShortFragment, mergedText, canDropNoNewContent, consolidateFinalEntries (+12) |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | whisperCost, translateCost, realtime2Cost, presented, reset (+8) |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeWebSocketService.swift` | connect, disconnect, sendJSON, processServerEvent, handleDisconnectError (+6) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | reset, status, isConfirmableNonSpeakerRoute, isLikelyHeadphones, isLikelyRoomSpeaker (+4) |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | connect, sendSessionUpdate, processServerEvent, finalTranscriptSegments, eventItemID (+4) |
+| `Sources/MeetingTranslator/Managers/AppState.swift` | setupOpenAIRealtimeCallbacks, handleOpenAIRealtimeEvent, setRealtimeTranslatedAudioMuted, realtimeMergeCandidate, consolidateRecentRealtimeUtterances (+3) |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | connect, commitAudio, sendSessionUpdate, processServerEvent, rotateTurnIDIfFallbackID (+3) |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeEventReducer.swift` | reduce, expirePartials, updateItem, reducedEntry, key (+3) |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeCoordinator.swift` | expirePartials, sendAudio, resetTranscriptionBoundaryContext, start, stop (+1) |
-| `Sources/MeetingTranslator/Managers/AppState.swift` | realtimeMergeCandidate, consolidateRecentRealtimeUtterances, mergeTranslations, currentRealtimeTranslatedAudioSafetyStatus, routeRealtimeAudioChunk |
+| `Sources/MeetingTranslator/Services/CostTracker.swift` | logGeminiLive, logOpenAIRealtimeWhisper, logOpenAIRealtimeTranslate, logOpenAIRealtimeAgent, addEntry |
 | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | connect, processServerEvent, rotateTurnIDIfFallbackID, sendAudio, OpenAIRealtimeTranslationService |
-| `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | currentDefaultOutputRoute, stringProperty, uint32Property |
 
 ## Entry Points
 
 Start here when exploring this area:
 
-- **`realtimeMergeCandidate`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:999`
-- **`consolidateRecentRealtimeUtterances`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1025`
-- **`mergeTranslations`** (Function) — `Sources/MeetingTranslator/Managers/AppState.swift:1038`
-- **`canMerge`** (Function) — `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift:3`
-- **`shouldDropUnstableShortFragment`** (Function) — `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift:32`
+- **`logGeminiLive`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:83`
+- **`logOpenAIRealtimeWhisper`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:91`
+- **`logOpenAIRealtimeTranslate`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:97`
+- **`logOpenAIRealtimeAgent`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:103`
+- **`addEntry`** (Function) — `Sources/MeetingTranslator/Services/CostTracker.swift:113`
 
 ## Key Symbols
 
@@ -46,22 +46,22 @@ Start here when exploring this area:
 | `OpenAIRealtimeTranslationService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranslationService.swift` | 2 |
 | `OpenAIRealtimeTranscriptionService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeTranscriptionService.swift` | 2 |
 | `OpenAIRealtimeAgentService` | Class | `Sources/MeetingTranslator/Services/OpenAIRealtime/OpenAIRealtimeAgentService.swift` | 2 |
+| `logGeminiLive` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 83 |
+| `logOpenAIRealtimeWhisper` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 91 |
+| `logOpenAIRealtimeTranslate` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 97 |
+| `logOpenAIRealtimeAgent` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 103 |
+| `addEntry` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 113 |
+| `setupOpenAIRealtimeCallbacks` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 479 |
+| `handleOpenAIRealtimeEvent` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 684 |
+| `setRealtimeTranslatedAudioMuted` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1330 |
+| `finishSegment` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 123 |
+| `setMuted` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 129 |
+| `stop` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 150 |
+| `whisperCost` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 18 |
+| `translateCost` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 22 |
+| `realtime2Cost` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 26 |
+| `presented` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 341 |
 | `realtimeMergeCandidate` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 999 |
-| `consolidateRecentRealtimeUtterances` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1025 |
-| `mergeTranslations` | Function | `Sources/MeetingTranslator/Managers/AppState.swift` | 1038 |
-| `canMerge` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 3 |
-| `shouldDropUnstableShortFragment` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 32 |
-| `mergedText` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 69 |
-| `canDropNoNewContent` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 97 |
-| `consolidateFinalEntries` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 128 |
-| `mergedTextSequence` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 232 |
-| `mergedOptionalText` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 265 |
-| `mergeComparisonTimestamp` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 284 |
-| `shouldInsertSpace` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 316 |
-| `endsWithTerminalPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 324 |
-| `isLeadingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 348 |
-| `isTrailingPunctuation` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeUtteranceMerger.swift` | 352 |
-| `reset` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | 238 |
 
 ## Execution Flows
 
@@ -74,19 +74,20 @@ Start here when exploring this area:
 | `StartRealtimeTranslatedAudioOutputRouteObserver → StringProperty` | cross_community | 6 |
 | `StartRealtimeTranslatedAudioOutputRouteObserver → Uint32Property` | cross_community | 6 |
 | `StartRealtimeTranslatedAudioOutputRouteObserver → RealtimeTranslatedAudioOutputRoute` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → Disconnect` | cross_community | 6 |
-| `ScheduleOpenAIRealtimeRecoveryIfNeeded → Disconnect` | cross_community | 6 |
-| `ScheduleOpenAIRealtimeRecoveryIfNeeded → Reset` | cross_community | 6 |
+| `StartRealtimeTranslatedAudioOutputRouteObserver → Stop` | cross_community | 6 |
+| `SetupOpenAIRealtimeCallbacks → Stop` | cross_community | 6 |
+| `SetupOpenAIRealtimeCallbacks → ActiveAudioSources` | cross_community | 6 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Managers | 2 calls |
+| Managers | 9 calls |
+| Services | 2 calls |
 | Realtime-foundation | 2 calls |
 
 ## How to Explore
 
-1. `gitnexus_context({name: "realtimeMergeCandidate"})` — see callers and callees
+1. `gitnexus_context({name: "logGeminiLive"})` — see callers and callees
 2. `gitnexus_query({query: "openairealtime"})` — find related execution flows
 3. Read key files listed above for implementation details

@@ -1,11 +1,11 @@
 ---
 name: services
-description: "Skill for the Services area of MeetingTranslatorPro. 51 symbols across 13 files."
+description: "Skill for the Services area of MeetingTranslatorPro. 28 symbols across 5 files."
 ---
 
 # Services
 
-51 symbols | 13 files | Cohesion: 79%
+28 symbols | 5 files | Cohesion: 90%
 
 ## When to Use
 
@@ -18,15 +18,10 @@ description: "Skill for the Services area of MeetingTranslatorPro. 51 symbols ac
 | File | Symbols |
 |------|---------|
 | `Sources/MeetingTranslator/Services/SystemAudioCurrentProcessExclusionProbe.swift` | CurrentProcessAudioExclusionProbeCapture, setPhase, snapshot, runAndExit, outputFileURL (+9) |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | RealtimeTranslatedAudioPlayer, configure, enqueuePCM16, makeBuffer, finishSegment |
-| `Sources/MeetingTranslator/Services/CostTracker.swift` | logGeminiLive, logOpenAIRealtimeWhisper, logOpenAIRealtimeTranslate, logOpenAIRealtimeAgent, addEntry |
-| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | updateAPIKey, performRequest, parseResultJSON, extractResult, isRepeatedCharacterHallucination |
 | `Sources/MeetingTranslator/Managers/SystemAudioManager.swift` | makeStreamConfiguration, startCapturing, stopCapturing, drainRemainingAudio |
-| `Sources/MeetingTranslator/Managers/AppState.swift` | setupOpenAIRealtimeCallbacks, handleOpenAIRealtimeEvent, persistRealtimeTranslatedAudioSafeOutputRouteFingerprint, saveSettings |
-| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeModels.swift` | whisperCost, translateCost, realtime2Cost, presented |
-| `Sources/MeetingTranslator/Services/WhisperService.swift` | updateAPIKey, transcribeWAV, performRequest, appendFormField |
+| `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | RealtimeTranslatedAudioPlayer, configure, enqueuePCM16, makeBuffer |
+| `Sources/MeetingTranslator/Services/GeminiFlashService.swift` | performRequest, parseResultJSON, extractResult, isRepeatedCharacterHallucination |
 | `Sources/MeetingTranslator/Services/AudioOutputRouteInspector.swift` | transportTypeDescription, fourCCString |
-| `Sources/MeetingTranslator/Views/ContentView.swift` | swapLanguages |
 
 ## Entry Points
 
@@ -60,8 +55,8 @@ Start here when exploring this area:
 | `configure` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 34 |
 | `enqueuePCM16` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 77 |
 | `makeBuffer` | Function | `Sources/MeetingTranslator/Services/OpenAIRealtime/RealtimeTranslatedAudioPlayer.swift` | 160 |
-| `logGeminiLive` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 83 |
-| `logOpenAIRealtimeWhisper` | Function | `Sources/MeetingTranslator/Services/CostTracker.swift` | 91 |
+| `stream` | Function | `Sources/MeetingTranslator/Services/SystemAudioCurrentProcessExclusionProbe.swift` | 58 |
+| `calculateRMS` | Function | `Sources/MeetingTranslator/Services/SystemAudioCurrentProcessExclusionProbe.swift` | 92 |
 
 ## Execution Flows
 
@@ -69,20 +64,21 @@ Start here when exploring this area:
 |------|------|-------|
 | `ProcessGeminiQualityLayer → IsRepeatedCharacterHallucination` | cross_community | 7 |
 | `ProcessGeminiQualityLayer → GeminiResult` | cross_community | 7 |
-| `HandleOpenAIRealtimeEvent → Disconnect` | cross_community | 6 |
 | `ProcessGeminiFast → IsRepeatedCharacterHallucination` | cross_community | 6 |
 | `ProcessGeminiFast → GeminiResult` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → Stop` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → ActiveAudioSources` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → ShowError` | cross_community | 6 |
-| `SetupOpenAIRealtimeCallbacks → Disconnect` | cross_community | 6 |
-| `ProcessFastLayer → AppendFormField` | cross_community | 6 |
+| `ToggleRecording → MakeTonePCM16` | cross_community | 6 |
+| `ToggleRecording → AppendLE` | cross_community | 6 |
+| `ToggleRecording → MakeStreamConfiguration` | cross_community | 5 |
+| `ToggleRecording → CurrentProcessAudioExclusionProbeCapture` | cross_community | 5 |
+| `ToggleRecording → SetPhase` | cross_community | 5 |
+| `RunAndExit → MakeTonePCM16` | intra_community | 4 |
 
 ## Connected Areas
 
 | Area | Connections |
 |------|-------------|
-| Managers | 17 calls |
+| OpenAIRealtime | 1 calls |
+| Managers | 1 calls |
 
 ## How to Explore
 
