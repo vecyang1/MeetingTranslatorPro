@@ -1140,6 +1140,20 @@ final class AppState: ObservableObject {
         }
     }
 
+    @discardableResult
+    private func confirmRealtimeTranslatedAudioSafeOutputForCurrentRoute() -> Bool {
+        guard let route = AudioOutputRouteInspector.currentDefaultOutputRoute(),
+              RealtimeTranslatedAudioOutputSafety.isConfirmableNonSpeakerRoute(route) else {
+            clearRealtimeTranslatedAudioSafeOutputConfirmation()
+            return false
+        }
+        realtimeTranslatedAudioSafeOutputConfirmed = true
+        realtimeTranslatedAudioSafeOutputRouteFingerprint = route.fingerprint
+        UserDefaults.standard.set(true, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
+        persistRealtimeTranslatedAudioSafeOutputRouteFingerprint()
+        return true
+    }
+
     private func mayUseRealtimeTranslatedAudioPlayback(sameLanguage: Bool) -> Bool {
         refreshRealtimeTranslatedAudioSafetyStatus()
         return RealtimeTranslatedAudioPlaybackGate.mayEnable(
@@ -1150,6 +1164,11 @@ final class AppState: ObservableObject {
             userOptedIn: realtimeTranslatedAudioPlaybackEnabled,
             safetyStatus: realtimeTranslatedAudioSafetyStatus
         )
+    }
+
+    var shouldShowRealtimeTranslatedAudioToolbarControl: Bool {
+        selectedEngine == .openAIRealtime
+            && shouldUseRealtimeTranslationSession(sameLanguage: specifiedInputMatchesTarget())
     }
 
     private func shouldUseRealtimeTextTranslationFallback(
@@ -1281,6 +1300,34 @@ final class AppState: ObservableObject {
         }
     }
 
+    func enableRealtimeTranslatedAudioPlaybackFromCurrentRoute() {
+        refreshRealtimeTranslatedAudioSafetyStatus()
+        let initialSafetyStatus = realtimeTranslatedAudioSafetyStatus
+        var confirmedCurrentRouteStatus: TranslatedAudioSafetyStatus?
+        if realtimeTranslatedAudioSafetyStatus == .needsHeadphonesConfirmation {
+            confirmRealtimeTranslatedAudioSafeOutputForCurrentRoute()
+            confirmedCurrentRouteStatus = currentRealtimeTranslatedAudioSafetyStatus()
+        }
+        refreshRealtimeTranslatedAudioSafetyStatus()
+
+        let activationPlan = RealtimeTranslatedAudioToolbarActivation.plan(
+            showTranslations: showTranslations,
+            inputLanguageCount: inputLanguages.count,
+            sameLanguage: specifiedInputMatchesTarget(),
+            interpreterSessionEnabled: realtimeInterpreterSessionEnabled,
+            currentSafetyStatus: initialSafetyStatus,
+            confirmedCurrentRouteStatus: confirmedCurrentRouteStatus
+        )
+
+        guard activationPlan.canEnablePlayback else {
+            statusMessage = activationPlan.finalSafetyStatus.userMessage
+            return
+        }
+
+        setRealtimeTranslatedAudioPlaybackEnabled(true)
+        statusMessage = "Translated audio safe preview enabled"
+    }
+
     func setRealtimeTranslatedAudioMuted(_ muted: Bool) {
         guard realtimeTranslatedAudioMuted != muted else { return }
         realtimeTranslatedAudioMuted = muted
@@ -1298,13 +1345,8 @@ final class AppState: ObservableObject {
     }
 
     func setRealtimeTranslatedAudioSafeOutputConfirmed(_ confirmed: Bool) {
-        if confirmed,
-           let route = AudioOutputRouteInspector.currentDefaultOutputRoute(),
-           RealtimeTranslatedAudioOutputSafety.isConfirmableNonSpeakerRoute(route) {
-            realtimeTranslatedAudioSafeOutputConfirmed = true
-            realtimeTranslatedAudioSafeOutputRouteFingerprint = route.fingerprint
-            UserDefaults.standard.set(true, forKey: realtimeTranslatedAudioSafeOutputConfirmedKey)
-            persistRealtimeTranslatedAudioSafeOutputRouteFingerprint()
+        if confirmed {
+            confirmRealtimeTranslatedAudioSafeOutputForCurrentRoute()
         } else {
             clearRealtimeTranslatedAudioSafeOutputConfirmation()
         }

@@ -188,6 +188,41 @@ enum RealtimeTranslatedAudioPlaybackGate {
     }
 }
 
+struct RealtimeTranslatedAudioToolbarActivationPlan: Equatable {
+    let shouldConfirmCurrentRoute: Bool
+    let canEnablePlayback: Bool
+    let finalSafetyStatus: TranslatedAudioSafetyStatus
+}
+
+enum RealtimeTranslatedAudioToolbarActivation {
+    static func plan(
+        showTranslations: Bool,
+        inputLanguageCount: Int,
+        sameLanguage: Bool,
+        interpreterSessionEnabled: Bool,
+        currentSafetyStatus: TranslatedAudioSafetyStatus,
+        confirmedCurrentRouteStatus: TranslatedAudioSafetyStatus?
+    ) -> RealtimeTranslatedAudioToolbarActivationPlan {
+        let shouldConfirm = currentSafetyStatus == .needsHeadphonesConfirmation
+        let finalSafetyStatus = shouldConfirm
+            ? (confirmedCurrentRouteStatus ?? currentSafetyStatus)
+            : currentSafetyStatus
+        let canEnable = RealtimeTranslatedAudioPlaybackGate.mayEnable(
+            showTranslations: showTranslations,
+            inputLanguageCount: inputLanguageCount,
+            sameLanguage: sameLanguage,
+            interpreterSessionEnabled: interpreterSessionEnabled,
+            userOptedIn: true,
+            safetyStatus: finalSafetyStatus
+        )
+        return RealtimeTranslatedAudioToolbarActivationPlan(
+            shouldConfirmCurrentRoute: shouldConfirm,
+            canEnablePlayback: canEnable,
+            finalSafetyStatus: finalSafetyStatus
+        )
+    }
+}
+
 enum RealtimeCaptionLatencyPreset: String, CaseIterable, Identifiable {
     case aggressive = "Aggressive"
     case balanced = "Balanced"

@@ -18,9 +18,10 @@ Implement M8 Realtime Translated Audio Playback end to end for Meeting Translato
 | App-local playback is not recaptured as system speech/audio | Installed app hidden probe passed: external synthetic control was captured (`external_max_rms=0.18910`), app-local playback stayed below the control threshold (`quiet_max_rms=0.00000`, `current_process_max_rms=0.00000`) | Pass |
 | Microphone/speaker feedback blocks unsafe routes and requires route-bound headphone confirmation | `AudioOutputRouteInspector` + `RealtimeTranslatedAudioOutputSafety` block likely speaker/display/HDMI/AirPlay/aggregate/unrecognized routes while mic capture is active; `AudioOutputRouteObserver` refreshes safety on default-output route changes; Settings uses route-bound headphones/non-speaker confirmation and never claims room-speaker safety | Pass |
 | Settings replaces "coming later" row with honest controls | `SettingsView` safe preview, mute, volume, safety status, disabled reason, and `gpt-realtime-translate` route copy; settings smoke passed | Pass |
+| Main-window translated-audio activation is not confused with system-audio capture | 2026-05-14 follow-up added a headphones toolbar control visible before playback is enabled; `translated audio toolbar smoke` guards the one-click current-headphone confirmation path | Pass |
 | Provider probes use synthetic audio and capture translated output audio | `generate_synthetic_probe_audio.sh` fixtures; full runner captured PCM16 WAVs for EN->ZH, ZH->EN, and code-switch | Pass |
 | Build/sign/install preserves bundle ID/signing/install path | `./build_app.sh` passed; installed `/Applications/MeetingTranslator.app`; bundle id `com.meetingtranslator.app`; Apple Development signature retained | Pass |
-| Release version is bumped for M8 | `Resources/Info.plist` sets app version `1.1.1` and build `3` after the microphone-feedback safety hotfix | Pass |
+| Release version is bumped for M8 | `Resources/Info.plist` sets app version `1.1.2` and build `4` after the headphone activation UX follow-up | Pass |
 | GitNexus detect-changes before final claim | `gitnexus detect-changes --repo MeetingTranslatorPro --scope all`: 23 files, 72 symbols, 34 affected processes, critical risk in expected AppState translated-audio output-route safety/routing flows | Pass |
 | Docs, changelog, PRDs, and skill updated | `docs/PRD.md`, `docs/API.md`, `CHANGELOG.md`, M7/M8/settings/speaker/voice PRDs, realtime audit, and `.agents/skills/openai-realtime-voice-foundation/SKILL.md` updated | Pass |
 
@@ -66,3 +67,14 @@ Provider translated-output captures from the final passing run:
 | Code-switch -> ZH | 38,400 bytes | PCM16 24 kHz | 1.50s | 1.52s |
 
 Only generated macOS `say` fixtures and synthetic tones were used. No private meeting audio was used.
+
+## 2026-05-14 Headphones Activation Follow-Up
+
+After live use showed AirPods were correctly detected but M8 playback stayed off because confirmation and opt-in were hidden in Settings, the app added a main-window headphones activation button. The button is visible when the Realtime interpreter route is eligible but playback is still off. It calls `enableRealtimeTranslatedAudioPlaybackFromCurrentRoute()`, which confirms only the current positive headphone-like route, runs `RealtimeTranslatedAudioToolbarActivation.plan`, and then enables playback through the normal M8 gate.
+
+Follow-up verification passed:
+
+- `translated audio toolbar smoke ok`, including executable safety-gate checks for speaker output, unrecognized output, AirPods-style headphone confirmation, caption-only mode, same-language mode, and auto-detect input.
+- `tools/realtime-foundation/run_realtime_mission_verification.sh --local-only`
+- Installed app runtime inspection for version `1.1.2` build `4`.
+- Computer-use visual inspection confirmed the installed app exposes the headphones control with Help text `Enable translated audio for the current headphone output`.

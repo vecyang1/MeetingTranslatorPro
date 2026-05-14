@@ -1,7 +1,7 @@
 # Internal API Reference — Meeting Translator Pro
 
-**Version:** 2.4
-**Last Updated:** 2026-05-13
+**Version:** 2.6
+**Last Updated:** 2026-05-14
 
 This document describes the internal service APIs, data models, and external API integrations used by Meeting Translator Pro. It is intended for developers and AI agents working on the codebase.
 
@@ -584,6 +584,7 @@ Translated audio playback M8 contract:
 - Playback must use `gpt-realtime-translate` output audio from the existing `/v1/realtime/translations` session. Do not add `gpt-realtime-2`, legacy TTS, or another model for playback.
 - Runtime may pass `translatedAudioPlaybackEnabled: true` to `OpenAIRealtimeTranslationService` only when `showTranslations`, exactly one pinned source language, non-same source/target language, `realtimeInterpreterSessionEnabled`, persisted M8 playback opt-in, and `TranslatedAudioSafetyStatus.ready` are all true.
 - Old placeholder persistence under `com.meetingtranslator.realtime.translatedaudioplayback` is ignored. M8 stores explicit opt-in/mute/volume/safe-output under `.m8.*` keys.
+- The main-window translated-audio control uses a headphones icon before playback is enabled. Its action calls `enableRealtimeTranslatedAudioPlaybackFromCurrentRoute()`, which may bind confirmation to the current positive headphone-like route and then enable playback in one explicit user click. The purple speaker level meter remains system-audio capture input, not translated-audio output.
 - `session.output_audio.delta` is translated audio only. `OpenAIRealtimeTranslationService` parses optional `format`, `sample_rate`, and `channels`; unsupported non-`pcm16` format emits `.translatedAudioFormatUnsupported` and disables playback. Audio chunks must never create transcript rows.
 - If `sample_rate` is absent, the native player uses the official WebSocket PCM boundary default of 24 kHz PCM16; provider probes with `--capture-output-audio` record final observed output details.
 - `session.output_audio.done`, Stop, mute, route downgrade, fallback, and reconnect drain or clear queued playback audio through `RealtimeTranslatedAudioPlayer`.

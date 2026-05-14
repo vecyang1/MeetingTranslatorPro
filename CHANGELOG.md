@@ -1,5 +1,23 @@
 # Changelog
 
+## 2026-05-14
+
+### Added
+
+- Bumped the installed app version to `1.1.2` build `4` for the translated-audio headphone activation UX fix.
+- Added a main-window translated-audio headphones control that is visible when the Realtime interpreter route is eligible, even before playback is enabled.
+- Added `enableRealtimeTranslatedAudioPlaybackFromCurrentRoute()` so one explicit click can bind the current headphone-like output route as the safe output and enable M8 playback without making the user hunt through Settings.
+- Added `translated audio toolbar smoke` to the realtime mission verification lane to keep the main-window activation path from regressing.
+
+### Fixed
+
+- Fixed the confusing post-feedback-safety state where selecting AirPods after speaker-output blocking left translated playback and safe-output confirmation off, with no main-window affordance to re-confirm the current headphones. The purple speaker level meter remains system-audio capture; translated audio activation now uses a headphones icon so it is visually separate from capture input.
+
+### Verified
+
+- Full local realtime mission verification passed with the new `translated audio toolbar smoke`, `./build_app.sh`, installed app runtime inspection for version `1.1.2` build `4`, and the installed-app current-process exclusion runtime probe.
+- Computer-use visual inspection confirmed the installed app shows the headphones translated-audio activation button in the main control bar with Help text `Enable translated audio for the current headphone output`.
+
 ## 2026-05-13
 
 ### Added

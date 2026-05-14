@@ -540,21 +540,8 @@ struct ContentView: View {
                 .buttonStyle(.plain)
                 .help(appState.showTranslations ? "Hide translations" : "Show translations")
 
-                if appState.realtimeTranslatedAudioPlaybackEnabled {
-                    Button(action: {
-                        appState.setRealtimeTranslatedAudioMuted(!appState.realtimeTranslatedAudioMuted)
-                    }) {
-                        Image(systemName: appState.realtimeTranslatedAudioMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(appState.realtimeTranslatedAudioPlaybackActive ? .green : .secondary)
-                            .frame(width: 28, height: 28)
-                            .background(
-                                Circle()
-                                    .fill(appState.realtimeTranslatedAudioPlaybackActive ? Color.green.opacity(0.12) : Color.primary.opacity(0.05))
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .help(appState.realtimeTranslatedAudioMuted ? "Unmute translated audio" : "Mute translated audio")
+                if appState.shouldShowRealtimeTranslatedAudioToolbarControl || appState.realtimeTranslatedAudioPlaybackEnabled {
+                    realtimeTranslatedAudioToolbarButton
                 }
 
                 if !appState.entries.isEmpty {
@@ -587,6 +574,41 @@ struct ContentView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
         .background(VisualEffectBackground(material: .contentBackground, blendingMode: .withinWindow))
+    }
+
+    @ViewBuilder
+    private var realtimeTranslatedAudioToolbarButton: some View {
+        if appState.realtimeTranslatedAudioPlaybackEnabled {
+            Button(action: {
+                appState.setRealtimeTranslatedAudioMuted(!appState.realtimeTranslatedAudioMuted)
+            }) {
+                Image(systemName: appState.realtimeTranslatedAudioMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(appState.realtimeTranslatedAudioPlaybackActive ? .green : .purple)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(appState.realtimeTranslatedAudioPlaybackActive ? Color.green.opacity(0.12) : Color.purple.opacity(0.08))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help(appState.realtimeTranslatedAudioMuted ? "Unmute translated audio" : "Mute translated audio")
+        } else {
+            Button(action: {
+                appState.enableRealtimeTranslatedAudioPlaybackFromCurrentRoute()
+            }) {
+                Image(systemName: "headphones")
+                    .font(.system(size: 12))
+                    .foregroundStyle(appState.realtimeTranslatedAudioSafetyStatus == .needsHeadphonesConfirmation ? .purple : .secondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(Color.purple.opacity(0.08))
+                    )
+            }
+            .buttonStyle(.plain)
+            .help("Enable translated audio for the current headphone output")
+        }
     }
 
     private var followLatestCaptionsButton: some View {
